@@ -1,7 +1,7 @@
-# ML assignment 4: Ensamble learning for Classification
+# ML assignment 4: Ensemble learning for Classification
 
 ## About this repository
-This repository stores the code, notebooks, and files used to develop ensamble
+This repository stores the code, notebooks, and files used to develop ensemble
 models for network intrusion detection. This was created as part of a university
 assignment (Machine Learning 741 at Stellenbosch University).
 

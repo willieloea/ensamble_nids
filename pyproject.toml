@@ -7,7 +7,12 @@ authors = [
     { name = "Willie Loftie-Eaton", email = "willieloea@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "ipykernel>=7.4.0",
+    "matplotlib>=3.11.2",
+    "pandas>=3.0.6",
+    "seaborn>=0.13.2",
+]
 
 [project.scripts]
 assignment4 = "assignment4:main"
