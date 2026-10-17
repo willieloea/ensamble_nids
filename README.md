@@ -70,7 +70,7 @@ So the feature was kept, and missing values were replaced with the string
 #### Remove features with unusual cardinality [x]
 The `id` column was removed from the dataset
 
-#### Remove duplicate features
+#### Remove duplicate features [x]
 From past work, we learnt that the `is_ftp_login` column perfectly correlates
 with `ct_ftp_cmd`, so `is_ftp_login` was dropped.
 
@@ -99,15 +99,20 @@ ct_dst_src_ltm       ct_srv_dst  0.839384  0.960321  0.960321
           dttl           dinpkt  0.953303  0.095347  0.953303
 ```
 
+Two features that share a strong correlation might have very different levels of
+informativeness w.r.t predicting the target feature, so I can't blindly drop
+descriptive features.
 
-### 3. Data pre-processing [ ]
-### 4. Model training [ ]
-For each model, I need to know how to do the following:
-- Broadly how this model can be used for this task
-- Predict categorical target values
-- Work with categorical and continuous descriptive features
+I'll use all features, and if there is time run another experiment where
+strongly correlated features are collapsed to one.
 
-### 5. Model evaluation [ ]
+#### Handle imbalanced classes [ ]
+Oversampling of minority classes
+Undersampling of majority classes
+
+### 3. Model training [ ]
+
+### 4. Model evaluation [ ]
 Potential evaluation metrics:
 - accuracy
 - confusion matrix
@@ -117,6 +122,18 @@ Potential evaluation metrics:
 - latency
 - throughput
 
-### 6. Model selection [ ]
-### 7. Model deployment [ ]
+For fun: describe what needs to be done to deploy the best model
 
+I've added saving functionality to my id3 implementation. This is how the tree
+can then be loaded:
+
+```py
+import pickle
+from assignment4.dec_tree.id3 import predict
+
+with open("tree.pkl", "rb") as file:
+    tree = pickle.load(file)
+
+# observation is a dictionary or pandas Series of feature values
+prediction = predict(tree, observation)
+```

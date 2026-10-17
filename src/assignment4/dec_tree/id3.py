@@ -1,6 +1,9 @@
 # file: id3.py
 
 # Iterative Dichotomizer 3
+import pickle
+from os import PathLike
+
 import pandas as pd
 if __package__:
     from . import info_metrics
@@ -13,6 +16,7 @@ def id3(
     domains=None,
     parent_majority=None,
     continuous_features=None,
+    save_path: str | PathLike[str] | None = None,
 ):
     """
     Iteratively partitions the dataset based on which feature is most
@@ -21,7 +25,20 @@ def id3(
     Explicitly list continuous_features to use binary threshold tests. The
     target must be the last column. Categorical nodes use {feature: branches};
     continuous nodes use {(feature, threshold): {"<": subtree, ">=": subtree}}.
+
+    If save_path is provided, pickle the completed tree to that file,
+    overwriting it if it exists. Its parent directory must already exist.
+    Load with pickle.load(); only load pickle files from trusted sources.
     """
+    tree = _id3(df, info_metric, domains, parent_majority, continuous_features)
+    if save_path is not None:
+        with open(save_path, "wb") as file:
+            pickle.dump(tree, file, protocol=pickle.HIGHEST_PROTOCOL)
+    return tree
+
+
+def _id3(df, info_metric, domains, parent_majority, continuous_features):
+    """Grow the tree recursively without saving intermediate subtrees."""
     continuous_features = set(continuous_features or ())
     if domains is None:
         unknown = continuous_features - set(df.columns[:-1])
@@ -82,7 +99,7 @@ def id3(
             above = df[best_feature] >= threshold
             for branch, mask in (("<", ~above), (">=", above)):
                 # Keep continuous features: a later node can use another threshold.
-                tree[(best_feature, threshold)][branch] = id3(
+                tree[(best_feature, threshold)][branch] = _id3(
                     df=df[mask],
                     info_metric=info_metric,
                     domains=domains,
@@ -101,7 +118,7 @@ def id3(
             # 8. remove the best descriptive feature from the dataset
             reduced_partition = partition.drop(columns=[best_feature])
 
-            subtree = id3(
+            subtree = _id3(
                 df=reduced_partition,
                 info_metric=info_metric,
                 domains=domains,
