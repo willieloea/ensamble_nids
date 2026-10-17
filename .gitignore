@@ -21,3 +21,4 @@ wheels/
 # Other
 *.png
 notebooks/data/
+experiments/two-hour-screening/

@@ -137,3 +137,154 @@ with open("tree.pkl", "rb") as file:
 # observation is a dictionary or pandas Series of feature values
 prediction = predict(tree, observation)
 ```
+
+## Generic classification ensembles
+
+`assignment4.ensemble` provides `bagging` and `boosting`. Both accept:
+
+- `train_model(sample_df)`: construct and return a fresh fitted classifier.
+- `predict_model(model, row)`: predict a single class label from a dictionary
+  or pandas Series of feature values.
+
+The training DataFrame must have its target column last. The callbacks can
+wrap ID3, k-nearest neighbours, or another classifier. Any model-specific
+preprocessing belongs in those callbacks and must be applied consistently at
+prediction time. Class labels must be hashable, nonmissing scalar values.
+
+For example, wrap the existing ID3 implementation using the original training
+set's categorical domains. This supplies fallback branches for categories
+omitted by a particular bootstrap sample:
+
+```python
+from functools import partial
+
+from assignment4.dec_tree.id3 import id3, predict
+from assignment4.dec_tree.info_metrics import information_gains
+from assignment4.ensemble import bagging, boosting
+
+# training_df is already preprocessed; its target column is last.
+# numerical_cols contains both discrete and continuous numerical predictors.
+domains = {
+    col: training_df[col].unique().tolist()
+    for col in training_df.columns[:-1]
+    if col not in numerical_cols
+}
+train_tree = partial(
+    id3,
+    info_metric=information_gains,
+    continuous_features=numerical_cols,
+    domains=domains,
+)
+
+bagged = bagging(
+    training_df, train_tree, predict, n_estimators=20, random_state=42,
+)
+boosted = boosting(
+    training_df, train_tree, predict, n_estimators=20,
+    learning_rate=1.0, random_state=42,
+)
+
+# test_df uses the same preprocessing and feature names.
+predictions = bagged.predict_many(test_df)
+one_prediction = boosted.predict(test_df.iloc[0])
+```
+
+Bagging uses equal-weight majority voting. By default, each model receives
+`len(training_df)` draws with replacement. For sub-bagging, pass
+`bootstrap=False` and a smaller integer `sample_size`. Vote ties are resolved
+by the class's first appearance in the original training set.
+
+Boosting implements multiclass AdaBoost (SAMME) through weighted resampling,
+so base learners need not implement sample weights. Each round draws a full
+replacement sample and evaluates its learner on all original training rows.
+This is training error, not validation error. For weighted error `error` and
+`K` classes, the learner's vote weight is
+`learning_rate * (log((1-error)/error) + log(K-1))`. Misclassified observations
+receive a factor `exp(alpha)` before weights are normalised. In the binary
+case, this gives the same normalised updates and voting decisions as the
+usual symmetric half-log formulation. Confidence increases as error decreases.
+See the [SAMME paper](https://web.stanford.edu/~hastie/Papers/samme.pdf).
+
+A perfect learner ends boosting and is returned alone as the dominant vote.
+A learner with error at least `1-1/K` is rejected: the first such failure
+raises `ValueError`; a later failure warns and returns the accepted learners.
+Unrestricted trees may fit perfectly and terminate boosting early. The generic
+callback allows a restricted or pruned learner to be substituted. Resampling
+is stochastic and is not identical to fitting directly with sample weights.
+
+`random_state` controls ensemble sampling; independently seed any randomness
+inside the base learner. Resampling uses training data only. The base learner
+remains responsible for handling categories absent from the entire training
+set; ID3's current predictor raises `KeyError` for those categories.
+
+Returned objects expose `estimators`, `estimator_weights`, and, for boosting,
+`estimator_errors`. They can be pickled when their models and prediction
+callback are pickle-compatible. Prefer importable functions over lambdas or
+locally defined functions when saving models; only load trusted pickle files.
+
+### Training progress
+
+Pass `progress=True` to `id3`, `bagging`, or `boosting` to display a progress
+bar. ID3 counts training rows assigned to terminal leaves; bagging counts fitted
+models; boosting counts evaluated rounds and may stop before the requested
+number. Row completion does not measure the fraction of computation finished:
+the initial split search can take time before the first leaf is completed.
+Progress output is disabled by default and requires no extra dependencies.
+
+```python
+tree = id3(training_df, information_gains,
+           continuous_features=numerical_cols, progress=True)
+bagged = bagging(training_df, train_tree, predict,
+                 n_estimators=20, random_state=42, progress=True)
+```
+
+A callback `progress(completed, total)` can be supplied instead of `True` to
+connect training to a notebook display or another progress monitor.
+
+### Two-hour screening batch
+
+Run this in a terminal from the repository root:
+
+```sh
+uv run python scripts/run_screening.py --output experiments/two-hour-screening
+```
+
+The runner has a two-hour wall-clock budget and a six-minute limit per job.
+It compares single and pruned ID3 trees, bagging, sub-bagging, and SAMME
+boosting using 500, 1,000, and 2,000 training rows, three sampling seeds, and
+ensembles of 5 members, followed by 15-member bagging and boosting runs as time
+allows. These are preliminary learning-curve and ensemble-size experiments,
+using all cleaned predictors and no class balancing. Each training subsample
+retains at least one observation per class, so the smallest samples are only
+approximately proportional to the original class frequencies.
+
+The live experiment bar shows processed jobs out of 54 planned jobs, elapsed
+time, remaining time budget, and the current stage. While training it also
+shows completed models/rounds and an ID3 row progress bar. Pruning and scoring
+are named stages without invented completion percentages. Progress is saved
+in per-job `.progress.json` files; `--no-progress` hides terminal bars.
+
+A stratified 20% final test partition is reserved and never scored. The
+remaining data are split into growth, pruning, and tuning partitions. Pruning
+uses its own 2,000-row sample; tuning metrics use the full tuning partition.
+Results include macro-F1, balanced accuracy, accuracy, per-class metrics,
+confusion matrices, fit and prediction timings, and fitted models.
+
+The output directory contains `summary.csv`, per-job metrics and logs,
+`status.json`, partition indices, and a frozen source-code snapshot. Callbacks
+in saved ensembles are defined in the snapshot's `run_screening.py`; add its
+directory and `code/src` to your Python import path when loading these models.
+Timed-out and failed jobs are recorded, and finished results survive Ctrl-C.
+Run the same command with the same output directory to resume unattempted
+jobs. Each invocation receives a fresh time budget; existing snapshots and
+partitions are reused. Keep the terminal running for the batch to continue.
+
+### Checking the implementation
+
+The tests use Python's standard-library `unittest` runner and the project's
+existing dependencies; no additional testing dependency is required:
+
+```sh
+uv run python -m unittest discover -s tests -v
+uv run python -m compileall src/assignment4
+```

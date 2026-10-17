@@ -7,8 +7,10 @@ from os import PathLike
 import pandas as pd
 if __package__:
     from . import info_metrics
+    from ..progress import ProgressBar
 else:
     import info_metrics # type: ignore
+    from assignment4.progress import ProgressBar
 
 def id3(
     df: pd.DataFrame,
@@ -17,6 +19,7 @@ def id3(
     parent_majority=None,
     continuous_features=None,
     save_path: str | PathLike[str] | None = None,
+    progress=False,
 ):
     """
     Iteratively partitions the dataset based on which feature is most
@@ -29,15 +32,18 @@ def id3(
     If save_path is provided, pickle the completed tree to that file,
     overwriting it if it exists. Its parent directory must already exist.
     Load with pickle.load(); only load pickle files from trusted sources.
+    progress=True displays training rows assigned to terminal leaves. A
+    callback progress(completed_rows, total_rows) can be supplied instead.
     """
-    tree = _id3(df, info_metric, domains, parent_majority, continuous_features)
+    with ProgressBar(len(df), "ID3 training rows", progress) as bar:
+        tree = _id3(df, info_metric, domains, parent_majority, continuous_features, bar)
     if save_path is not None:
         with open(save_path, "wb") as file:
             pickle.dump(tree, file, protocol=pickle.HIGHEST_PROTOCOL)
     return tree
 
 
-def _id3(df, info_metric, domains, parent_majority, continuous_features):
+def _id3(df, info_metric, domains, parent_majority, continuous_features, bar):
     """Grow the tree recursively without saving intermediate subtrees."""
     continuous_features = set(continuous_features or ())
     if domains is None:
@@ -63,12 +69,14 @@ def _id3(df, info_metric, domains, parent_majority, continuous_features):
     if len(df[target_feature].unique()) == 1:
         # a decision tree consisting of a leaf node with label C
         # return df[target_feature].unique()
+        bar.advance(len(df))
         return df[target_feature].iloc[0]  # returns 'conifer', not an array
 
 
     elif len(descriptive_features) == 0:
         # a decision tree consisting of a leaf node with the label of the
         # majority target level in D
+        bar.advance(len(df))
         return df[target_feature].mode()[0]
 
     else:
@@ -90,6 +98,7 @@ def _id3(df, info_metric, domains, parent_majority, continuous_features):
 
         # Continuous columns with no candidate boundary cannot split this node.
         if not data:
+            bar.advance(len(df))
             return current_majority
         best_feature = max(data, key=data.get)
 
@@ -105,6 +114,7 @@ def _id3(df, info_metric, domains, parent_majority, continuous_features):
                     domains=domains,
                     parent_majority=current_majority,
                     continuous_features=continuous_features,
+                    bar=bar,
                 )
             return tree
 
@@ -124,6 +134,7 @@ def _id3(df, info_metric, domains, parent_majority, continuous_features):
                 domains=domains,
                 parent_majority=current_majority,
                 continuous_features=continuous_features,
+                bar=bar,
             )
             tree[best_feature][val] = subtree
 
