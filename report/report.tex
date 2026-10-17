@@ -1,0 +1,45 @@
+\documentclass[10pt]{IEEEtran}
+
+% run latexmk -pdf report.tex to create the PDF.
+
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{url}
+\usepackage{microtype}
+
+\begin{document}
+
+\title{Comparative Evaluation of Decision Trees and Ensemble Models for Network Intrusion Detection on the UNSW-NB15 Dataset}
+
+\author{\IEEEauthorblockN{Willie Loftie-Eaton} \\
+\IEEEauthorblockA{\textit{Computer Science Division, Stellenbosch University} \\
+Stellenbosch, South Africa \\
+Email: 24717274@sun.ac.za / willieloea@gmail.com}
+}
+
+\maketitle
+
+\input{chap/abstract}
+
+% \begin{IEEEkeywords}
+% Network Intrusion Detection, Machine Learning, Decision Trees, Ensemble Learning.
+% \end{IEEEkeywords}
+
+\input{chap/introduction}
+\input{chap/background}
+\input{chap/methodology}
+\input{chap/empirics}
+\input{chap/results}
+\input{chap/conclusion}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
+

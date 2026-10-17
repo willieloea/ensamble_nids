@@ -1,0 +1,35 @@
+% A very high level discussion on the problem domain and the algorithms and/or
+% approaches that you have used. Do not be too specific on the algorithms and
+% approaches. This section is typically where the “base cases” of concepts that
+% appear throughout the remainder of your report are discussed. It is also an
+% ideal place to refer a reader to other sources containing relevant information
+% on the topic but which is outside the scope of your assignment. It is the
+% perfect place for pseudo code of existing approaches. Remember to discuss very
+% generally. After reading this section the marker should be able to determine
+% whether or not you know what you’re talking about. Keep in mind that this is a
+% background section, and does not contain any detail on what you have done, but
+% only provides a summary of related background to understand what you have
+% done.
+\section{Background and Theoretical Foundations}
+\label{sec:background}
+
+\subsection{Machine Learning Algorithms}
+
+\subsubsection{Classification Trees (Information-Based Learning)}
+Decision tree algorithms partition a heterogeneous training dataset $\mathcal{D} = \{(\mathbf{x}_i, y_i)\}_{i=1}^N$ into increasingly homogeneous subsets. At each internal node, a candidate split on attribute $a$ with threshold $\theta$ divides the parent partition $\mathcal{D}$ into disjoint children $\mathcal{D}_L = \{\mathbf{x} \in \mathcal{D} \mid x_a \le \theta\}$ and $\mathcal{D}_R = \{\mathbf{x} \in \mathcal{D} \mid x_a > \theta\}$.
+
+Splits are selected greedily to maximize impurity reduction. Under Shannon Entropy, the impurity of partition $\mathcal{D}$ over target classes $C = \{c_1, \dots, c_K\}$ is defined as:
+\begin{equation}
+    H(\mathcal{D}) = - \sum_{k=1}^K p(c_k \mid \mathcal{D}) \log_2 p(c_k \mid \mathcal{D})
+\end{equation}
+The Information Gain (IG) of a candidate binary split is the difference between parent entropy and the weighted sum of child entropies:
+\begin{equation}
+    IG(\mathcal{D}, a, \theta) = H(\mathcal{D}) - \frac{|\mathcal{D}_L|}{|\mathcal{D}|} H(\mathcal{D}_L) - \frac{|\mathcal{D}_R|}{|\mathcal{D}|} H(\mathcal{D}_R)
+\end{equation}
+Alternatively, the Gini Impurity metric measures the probability of misclassifying a randomly chosen element:
+\begin{equation}
+    \text{Gini}(\mathcal{D}) = 1 - \sum_{k=1}^K p(c_k \mid \mathcal{D})^2
+\end{equation}
+Decision trees produce explicit, rule-based decision logic and train in $O(M \cdot N \log N)$ time, with test query latency bounded by the tree depth $O(\text{depth})$.
+
+\cite{Kelleher2020}
