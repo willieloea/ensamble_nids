@@ -222,3 +222,55 @@ Returned objects expose `estimators`, `estimator_weights`, and, for boosting,
 `estimator_errors`. They can be pickled when their models and prediction
 callback are pickle-compatible. Prefer importable functions over lambdas or
 locally defined functions when saving models; only load trusted pickle files.
+
+## Final Experiment
+In the report, I would like to answer: "How does the performance of a decision
+tree, and different ensembles of decision trees compare".
+
+I want to run one final big experiment which compares:
+
+- Balanced Unpruned tree
+- Balanced Pruned tree
+- Balanced Boosting ensemble
+- Balanced Bagging ensemble
+
+Breakup of dataset:
+Training: 123683
+Pruning: 41225
+Validation: 41234
+Generalization: 51531
+
+Use stratified sampling to build each of these sets
+When training the models, use under/over sampling to balance the classes. We'll
+test different ways of balancing the classes to see which is best.
+
+Pruning and validation are separate so that we don't judge a tree based on the
+instances used to prune it. (makes most sense for me in the case of ensemble
+models)
+
+Evaluate the models with:
+- Macro-F1: gives every class equal weight while considering precision and recall.
+- Balanced accuracy: averages recall across classes.
+- Per-class precision, recall, and F1: shows which attacks benefit and which produce false alarms.
+- Overall accuracy: shows performance weighted by the natural class frequencies.
+
+This will give us good insight into the different strengths and weaknesses of
+the different models.
+
+__tree depth__
+Unpruned: unrestricted
+Pruned: Unrestricted
+Bagging: Unrestricted
+Boosting: Max depth of 3 and 8
+
+__number of members__
+5, 10, 25, 50
+
+__boosting learning rate__
+0.5 and 1.0
+
+__pruning rule__
+stick with current, but flag potential experiments
+
+__repeated runs__
+just do 3
