@@ -97,15 +97,6 @@ def execute(output, job, timeout, deadline, bar):
                     status = 'timeout'
                     process.terminate()
                     break
-                progress = path / 'progress.json'
-                detail = job['id']
-                if progress.exists():
-                    state = json.loads(progress.read_text())
-                    detail += ' | ' + state.get('phase', '')
-                    detail += f" | members {state.get('accepted_members', 0)}/{job['members']}"
-                    if 'tree_completed_rows' in state:
-                        detail += f" | tree rows {state['tree_completed_rows']}/{state['tree_total_rows']}"
-                bar.update(detail=detail)
                 try:
                     process.wait(timeout=0.5)
                 except subprocess.TimeoutExpired:

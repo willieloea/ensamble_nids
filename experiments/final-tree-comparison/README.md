@@ -66,7 +66,8 @@ not change prepared jobs; edited frozen inputs are rejected by hash verification
 - `jobs/<id>/*.pkl` and checkpoint JSON files: fitted models and evaluation metrics.
 - `attempts/`: preserved incomplete attempts; excluded from projections.
 
-The parent displays overall progress with current member and tree-row counts.
+The parent prints one status line when each job is processed. Live member and
+tree-row counts remain available in each job's `progress.json` file.
 Peak memory is measured per worker process on Linux. Saved models require the
 frozen `code/` and `code/src/` directories on `PYTHONPATH` when loading, since the
 prediction adapter is defined in `run_screening.py`. Only load trusted local

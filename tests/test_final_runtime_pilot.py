@@ -108,6 +108,10 @@ class RuntimePilotTests(unittest.TestCase):
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
             statuses = [json.loads(p.read_text()) for p in (output / 'jobs').glob('*/result.json')]
             self.assertTrue(all(s['status'] == 'complete' for s in statuses), statuses)
+            progress_lines = [line for line in first.stdout.splitlines()
+                              if line.startswith('Pilot jobs processed ')]
+            self.assertEqual(len(progress_lines), len(statuses))
+            self.assertNotIn('tree rows', first.stdout + first.stderr)
             self.assertEqual(json.loads((output / 'status.json').read_text())['initial_complete'], 12)
             self.assertIn('Configuration coverage: 12/12', (output / 'FORECAST.md').read_text())
             for result in statuses:

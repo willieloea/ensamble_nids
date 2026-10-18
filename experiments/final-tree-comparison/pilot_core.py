@@ -15,7 +15,7 @@ import pandas as pd
 
 from assignment4.dec_tree.reduced_error_pruning import reduced_error_pruning
 from assignment4.ensemble._common import VotingEnsemble, validate_training
-from assignment4.progress import ProgressBar
+from assignment4.progress import ProgressBar, format_duration
 from overnight_core import TreeTrainer, EnsembleEvaluationCache, save_model, tree_shape
 from run_screening import evaluate, predict_tree, write_json
 
@@ -337,12 +337,21 @@ def run(output, config, execute, deadline):
     timeout = config['runtime_pilot']['job_timeout_seconds']
     handled = []
     requested = list(jobs)
-    with ProgressBar(len(jobs), 'Pilot jobs processed', True) as bar:
+    def processed(bar, job):
+        bar.advance()
+        result_path = output / 'jobs' / job['id'] / 'result.json'
+        status = json.loads(result_path.read_text())['status'] if result_path.exists() else 'deferred'
+        print(f'Pilot jobs processed {bar.completed}/{bar.total}'
+              f' elapsed {format_duration(time.monotonic() - bar.started)}'
+              f" | {job['id']} | {status}", flush=True)
+
+    # Keep counting without timed renders, carriage returns, or start/end lines.
+    with ProgressBar(len(jobs), 'Pilot jobs processed', False) as bar:
         for job in jobs:
             execute(output, job, timeout, deadline, bar)
             handled.append(job['id'])
             summarize(output, config)
-            bar.advance()
+            processed(bar, job)
         # Later checks deliberately restart, preserving independent 5/10/25 runs.
         for strength in config['balancing_lambdas']:
             candidates = [r for r in completed_results(output)
@@ -359,11 +368,12 @@ def run(output, config, execute, deadline):
                 extension = make_job('boosting', strength, config, base['depth'], base['learning_rate'], length)
                 requested.append(extension)
                 bar.total += 1
-                if not execute(output, extension, timeout, deadline, bar):
-                    break
+                success = execute(output, extension, timeout, deadline, bar)
                 handled.append(extension['id'])
                 summarize(output, config)
-                bar.advance()
+                processed(bar, extension)
+                if not success:
+                    break
                 result = json.loads((output / 'jobs' / extension['id'] / 'result.json').read_text())
                 costs = list(round_costs(events_for(output, extension)).values())
                 if result['stop_reason'] != 'member_limit' or len(costs) < 10:
