@@ -13,23 +13,94 @@
 \section{Background and Theoretical Foundations}
 \label{sec:background}
 
-\subsection{Machine Learning Algorithms}
+\subsection{Information-Based Decision Tree Learning}
+Decision tree algorithms induce a hierarchical, rule-based classifier by recursively partitioning a labelled dataset $\mathcal{D} = \{(\mathbf{x}_i, y_i)\}_{i=1}^N$, where each instance $\mathbf{x}_i$ is described by $M$ descriptive features and belongs to one of $K$ mutually exclusive target classes $\mathcal{C} = \{c_1, \dots, c_K\}$~\cite{Kelleher2020,Quinlan1986}. Internal nodes represent tests on individual descriptive features, branches correspond to test outcomes, and terminal leaf nodes assign a class prediction. Because many decision trees can be consistent with the same training examples, top-down tree induction relies on a preference bias toward shorter trees with fewer test nodes, placing the most discriminative tests near the root~\cite{Kelleher2020}.
 
-\subsubsection{Classification Trees (Information-Based Learning)}
-Decision tree algorithms partition a heterogeneous training dataset $\mathcal{D} = \{(\mathbf{x}_i, y_i)\}_{i=1}^N$ into increasingly homogeneous subsets. At each internal node, a candidate split on attribute $a$ with threshold $\theta$ divides the parent partition $\mathcal{D}$ into disjoint children $\mathcal{D}_L = \{\mathbf{x} \in \mathcal{D} \mid x_a \le \theta\}$ and $\mathcal{D}_R = \{\mathbf{x} \in \mathcal{D} \mid x_a > \theta\}$.
+In the standard Iterative Dichotomiser 3 (ID3) algorithm~\cite{Quinlan1986}, tree growth proceeds top-down by greedily selecting the descriptive feature that yields the greatest reduction in target class uncertainty. Uncertainty within a partition $\mathcal{D}$ is quantified using Shannon's entropy measure~\cite{Shannon1948}:
+\begin{equation}
+    H(\mathcal{D}) = - \sum_{k=1}^K P(y = c_k \mid \mathcal{D}) \log_2 P(y = c_k \mid \mathcal{D}),
+    \label{eq:entropy}
+\end{equation}
+where $P(y = c_k \mid \mathcal{D})$ is the empirical proportion of instances in $\mathcal{D}$ belonging to class $c_k$, taking $0 \log_2 0 = 0$ by convention. A pure partition containing only a single class has $H(\mathcal{D}) = 0$, whereas a uniform distribution over $K$ classes attains the maximum entropy of $\log_2 K$ bits.
 
-Splits are selected greedily to maximize impurity reduction. Under Shannon Entropy, the impurity of partition $\mathcal{D}$ over target classes $C = \{c_1, \dots, c_K\}$ is defined as:
+When a categorical feature $d$ with domain $\operatorname{levels}(d)$ partitions $\mathcal{D}$ into subsets $\{\mathcal{D}_{d=l}\}_{l \in \operatorname{levels}(d)}$, the expected remaining entropy is the weighted average of the child entropies:
 \begin{equation}
-    H(\mathcal{D}) = - \sum_{k=1}^K p(c_k \mid \mathcal{D}) \log_2 p(c_k \mid \mathcal{D})
+    \operatorname{rem}(d, \mathcal{D}) = \sum_{l \in \operatorname{levels}(d)} \frac{|\mathcal{D}_{d=l}|}{|\mathcal{D}|} H(\mathcal{D}_{d=l}).
+    \label{eq:rem}
 \end{equation}
-The Information Gain (IG) of a candidate binary split is the difference between parent entropy and the weighted sum of child entropies:
+The Information Gain (IG) of splitting $\mathcal{D}$ on feature $d$ is the reduction in entropy:
 \begin{equation}
-    IG(\mathcal{D}, a, \theta) = H(\mathcal{D}) - \frac{|\mathcal{D}_L|}{|\mathcal{D}|} H(\mathcal{D}_L) - \frac{|\mathcal{D}_R|}{|\mathcal{D}|} H(\mathcal{D}_R)
+    \operatorname{IG}(d, \mathcal{D}) = H(\mathcal{D}) - \operatorname{rem}(d, \mathcal{D}).
+    \label{eq:ig}
 \end{equation}
-Alternatively, the Gini Impurity metric measures the probability of misclassifying a randomly chosen element:
-\begin{equation}
-    \text{Gini}(\mathcal{D}) = 1 - \sum_{k=1}^K p(c_k \mid \mathcal{D})^2
-\end{equation}
-Decision trees produce explicit, rule-based decision logic and train in $O(M \cdot N \log N)$ time, with test query latency bounded by the tree depth $O(\text{depth})$.
+Recursion terminates along a branch when the reaching subset is pure, when no candidate features remain (returning the majority class of the reaching subset), or when a branch is empty (returning the majority class of the immediate parent node)~\cite{Kelleher2020}.
 
-\cite{Kelleher2020}
+\subsection{Alternative Impurity Metrics and Continuous Splits}
+While information gain is effective across many problems, it exhibits a well-known bias toward categorical features with many distinct levels: a high-cardinality feature can fragment $\mathcal{D}$ into many small, nearly pure subsets even when the feature is weakly predictive on unseen data~\cite{Quinlan1986,Kelleher2020}. To penalise multi-way fragmentation, Quinlan introduced the \emph{Gain Ratio} (GR), which normalises information gain by the split information (the intrinsic entropy of the feature partition itself):
+\begin{equation}
+\begin{aligned}
+    \operatorname{GR}(d, \mathcal{D}) &= \frac{\operatorname{IG}(d, \mathcal{D})}{\operatorname{SI}(d, \mathcal{D})}, \\
+    \operatorname{SI}(d, \mathcal{D}) &= - \sum_{l \in \operatorname{levels}(d)} \frac{|\mathcal{D}_{d=l}|}{|\mathcal{D}|} \log_2 \frac{|\mathcal{D}_{d=l}|}{|\mathcal{D}|}.
+\end{aligned}
+\label{eq:gain_ratio}
+\end{equation}
+In C4.5~\cite{Quinlan1993}, gain ratio is paired with an eligibility safeguard that considers only candidate splits whose information gain is at least the average information gain across all tested splits at that node; without this filter, very unbalanced binary splits with near-zero split information $\operatorname{SI}(d, \mathcal{D})$ can receive artificially inflated gain ratios.
+
+An alternative impurity measure is the \emph{Gini index}, which measures the probability of misclassifying a randomly chosen instance if labels were assigned randomly according to the empirical class distribution in $\mathcal{D}$~\cite{Kelleher2020}:
+\begin{equation}
+\begin{aligned}
+    \operatorname{Gini}(\mathcal{D}) &= \sum_{k=1}^K P(y = c_k \mid \mathcal{D})\bigl(1 - P(y = c_k \mid \mathcal{D})\bigr) \\
+    &= 1 - \sum_{k=1}^K P(y = c_k \mid \mathcal{D})^2.
+\end{aligned}
+\label{eq:gini}
+\end{equation}
+Replacing $H(\cdot)$ with $\operatorname{Gini}(\cdot)$ in Equations~(\ref{eq:rem}) and~(\ref{eq:ig}) yields the Gini information gain.
+
+To accommodate continuous or ordered numerical features within an ID3-style learner, multi-way branching is replaced by binary threshold tests of the form $x_d < \theta$ versus $x_d \ge \theta$~\cite{Quinlan1993,Kelleher2020}. By sorting the distinct observed values of $x_d$ in ascending order, candidate thresholds $\theta$ need only be evaluated at midpoints between adjacent distinct values where the associated target class labels change (or adjacent to mixed-label value groups). The threshold maximising the chosen impurity reduction is selected as the feature's best split. Unlike categorical features, which are exhausted and removed after a multi-way split, a continuous feature remains available to descendant nodes for further partitioning at tighter thresholds.
+
+\subsection{Overfitting and Tree Pruning}
+Because recursive partitioning continues until leaves are homogeneous or all features are exhausted, unrestricted trees adapt closely to sampling noise and label conflicts in $\mathcal{D}$. As tree depth increases, decisions rely on progressively smaller subsets of observations, increasing variance and degrading out-of-sample generalisation~\cite{Kelleher2020}. Regularisation strategies fall into two categories:
+\begin{itemize}
+    \item \textbf{Pre-pruning (early stopping):} Tree growth is halted during induction when a stopping criterion is met, such as reaching a maximum depth $d_{\max}$ or a minimum partition size. Pre-pruning reduces training time directly, but suffers from a horizon effect in which locally weak splits that would enable informative descendant splits are prematurely blocked.
+    \item \textbf{Post-pruning:} The tree is first grown to full depth on the training set and subsequently simplified. In \emph{reduced-error pruning}~\cite{Quinlan1993,Kelleher2020}, a separate pruning dataset $\mathcal{D}_{\text{prune}}$ is routed through the fitted tree in a bottom-up (post-order) traversal. At each internal node, the number of classification errors committed on $\mathcal{D}_{\text{prune}}$ by the existing subtree is compared against the number of errors committed if the node were replaced by a leaf predicting its training-set majority class. If the leaf produces no more errors than the subtree, the subtree is pruned.
+\end{itemize}
+Crucially, because standard reduced-error pruning minimises unweighted error counts on $\mathcal{D}_{\text{prune}}$, its bias interacts strongly with class imbalance: in skewed datasets, pruning can improve overall accuracy while collapsing small subtrees responsible for minority-class detection.
+
+\subsection{Ensemble Learning and the Bias--Variance Tradeoff}
+Ensemble learning constructs a composite classifier from multiple base learners to achieve better generalisation than an individual constituent model~\cite{Kelleher2020}. Under the classical bias--variance decomposition of expected prediction error for an estimator $\hat{f}(\mathbf{x})$,
+\begin{equation}
+    \mathbb{E}\bigl[(y - \hat{f}(\mathbf{x}))^2\bigr] = \operatorname{Bias}^2\bigl[\hat{f}(\mathbf{x})\bigr] + \operatorname{Var}\bigl[\hat{f}(\mathbf{x})\bigr] + \sigma^2,
+    \label{eq:bias_variance}
+\end{equation}
+different ensemble architectures target distinct error components:
+
+\subsubsection{Bootstrap Aggregation (Bagging) and Sub-Bagging}
+Bagging~\cite{Breiman1996} trains $M$ independent base learners on bootstrap replicates $\mathcal{D}_1, \dots, \mathcal{D}_M$, each formed by drawing $N = |\mathcal{D}|$ observations uniformly with replacement from $\mathcal{D}$. For classification, predictions are combined by uniform majority voting:
+\begin{equation}
+    \hat{y}(\mathbf{x}) = \arg\max_{c \in \mathcal{C}} \sum_{m=1}^M \mathbb{I}\bigl(h_m(\mathbf{x}) = c\bigr).
+    \label{eq:bagging_vote}
+\end{equation}
+Because each bootstrap sample omits approximately $(1 - 1/N)^N \approx e^{-1} \approx 36.8\%$ of the training instances, unpruned decision trees---which are sensitive to small perturbations in their training sample---grow diverse structures. Aggregating their votes reduces variance without altering the functional capacity or expected bias of the individual base learner~\cite{Breiman1996}. \emph{Sub-bagging} instead draws smaller proper subsets of size $s < N$ without replacement, increasing inter-model decorrelation at the cost of higher individual base-learner bias when $s$ is small. Note that when bagging uses all descriptive features at every split rather than random feature subspaces, it remains standard bootstrap aggregation rather than a Random Forest.
+
+\subsubsection{Multiclass Boosting (SAMME)}
+Whereas bagging combines high-variance, low-bias learners in parallel, boosting sequentially trains weak learners so that each subsequent model focuses on observations misclassified by earlier rounds, primarily reducing bias alongside variance~\cite{Freund1997,Kelleher2020}. Each training instance $i$ maintains a non-negative weight $w_i^{(m)}$, initialised uniformly as $w_i^{(1)} = 1/N$. At round $m$, a base learner $h_m$ is fitted using the weighted distribution (either directly via weighted impurity or stochastically via weighted resampling of $N$ draws with replacement) and evaluated across all $N$ original training instances to compute the weighted training error:
+\begin{equation}
+    \epsilon_m = \frac{\sum_{i=1}^N w_i^{(m)} \mathbb{I}\bigl(h_m(\mathbf{x}_i) \ne y_i\bigr)}{\sum_{i=1}^N w_i^{(m)}}.
+    \label{eq:boost_err}
+\end{equation}
+In binary AdaBoost ($K=2$), a learner requires $\epsilon_m < 1/2$ to obtain a positive vote weight $\alpha_m = \frac{1}{2}\ln\bigl((1-\epsilon_m)/\epsilon_m\bigr)$~\cite{Freund1997}. In the $K$-class setting, however, random guessing achieves accuracy $1/K$, making the binary requirement $\epsilon_m < 1/2$ overly restrictive for weak trees. The Stagewise Additive Modeling using a Multi-class Exponential loss function (\textbf{SAMME}) algorithm of Zhu et al.~\cite{Zhu2009} generalises AdaBoost to $K$ classes by requiring only $\epsilon_m < 1 - 1/K$ and defining the learner confidence weight with learning rate $\eta > 0$ as:
+\begin{equation}
+    \alpha_m = \eta \left( \ln \frac{1 - \epsilon_m}{\epsilon_m} + \ln(K - 1) \right).
+    \label{eq:samme_alpha}
+\end{equation}
+Observation weights are updated by multiplying misclassified instances by $\exp(\alpha_m)$,
+\begin{equation}
+    w_i^{(m+1)} = \frac{w_i^{(m)} \exp\bigl(\alpha_m \mathbb{I}(h_m(\mathbf{x}_i) \ne y_i)\bigr)}{Z_m},
+    \label{eq:samme_update}
+\end{equation}
+where $Z_m$ normalises the distribution, and the ensemble predicts via confidence-weighted voting:
+\begin{equation}
+    \hat{y}(\mathbf{x}) = \arg\max_{c \in \mathcal{C}} \sum_{m=1}^M \alpha_m \mathbb{I}\bigl(h_m(\mathbf{x}) = c\bigr).
+    \label{eq:samme_vote}
+\end{equation}
+When $K=2$ and $\eta=1$, Equations~(\ref{eq:samme_alpha})--(\ref{eq:samme_vote}) yield the exact same normalised weight trajectory and voting decisions as standard binary AdaBoost~\cite{Zhu2009}.

@@ -5,3 +5,84 @@
 % mentioned in the background section. Be very specific in your discussions in
 % this section, to clearly describe what you have done and how you have done it.
 \section{Methodology and Implementation}
+\label{sec:methodology}
+
+To ensure a controlled comparison between standalone decision trees and tree-based ensembles, all algorithms were implemented from scratch in Python using \texttt{pandas} data structures. This section details the dataset preprocessing and feature representation, the extended ID3 decision-tree learner and its algorithmic optimisations, the reduced-error pruning procedure, the ensemble frameworks, and the hybrid class-balancing scheme.
+
+\subsection{Dataset Preprocessing and Feature Representation}
+The study uses a custom subset of the UNSW-NB15 network intrusion detection dataset~\cite{Moustafa2015} containing $N_{\text{total}} = 257{,}673$ network flow records. The target variable is \texttt{attack\_cat}, which assigns each flow to one of $K = 10$ classes: \emph{Normal} (0), \emph{Reconnaissance} (1), \emph{Backdoor} (2), \emph{DoS} (3), \emph{Exploits} (4), \emph{Analysis} (5), \emph{Fuzzers} (6), \emph{Worms} (7), \emph{Shellcode} (8), and \emph{Generic} (9).
+
+Exploratory data analysis guided four preprocessing decisions:
+\begin{enumerate}
+    \item \textbf{Removal of non-predictive and duplicate columns:} The record identifier \texttt{id} was removed to prevent memorisation of row indices. The binary indicator \texttt{is\_ftp\_login} was also dropped because prior analysis established that it correlates perfectly with the FTP command counter \texttt{ct\_ftp\_cmd}.
+    \item \textbf{Informative missingness in \texttt{service}:} Inspection of missing values revealed that only the \texttt{service} attribute contained missing entries (represented as \texttt{-}/NaN), and that its missingness varied sharply across attack classes. For example, \texttt{service} was missing in $100.0\%$ of \emph{Shellcode} flows, $95.28\%$ of \emph{Backdoor} flows, and $90.65\%$ of \emph{Fuzzers} flows, but in only $1.55\%$ of \emph{Generic} and $14.94\%$ of \emph{Worms} flows. Because the absence of an identified application-layer service carries strong discriminative information, the feature was retained and missing entries were encoded as an explicit `\texttt{other}' category.
+    \item \textbf{Categorical versus ordered numerical representation:} Following cleaning, $M = 41$ descriptive features remained. Four predictors were represented as categorical features: transport protocol (\texttt{proto}, 133 distinct levels in the growth pool), application service (\texttt{service}), connection state (\texttt{state}), and the binary indicator \texttt{is\_sm\_ips\_ports}. The remaining 37 predictors - comprising continuous flow durations, packet inter-arrival times, bitrates, TCP round-trip times, and discrete packet/byte/connection counters - were treated as ordered numerical features tested via binary threshold splits. Because decision trees partition categorical domains directly and test numerical features via order-preserving thresholds, neither numerical rescaling nor one-hot encoding was required.
+    \item \textbf{Retaining strongly correlated predictors and repeated flow patterns:} Rank and linear correlation screening on the numerical predictors identified 20 feature pairs with $\max(|r_{\text{Pearson}}|, |r_{\text{Spearman}}|) \ge 0.95$, such as \texttt{sbytes} - \texttt{sloss} ($r_P = 0.9958$) and \texttt{tcprtt} - \texttt{synack} ($r_S = 0.9963$). Although high collinearity often motivates feature pruning in linear models, two strongly correlated network counters are not interchangeable in a greedy decision tree: they can offer different local split thresholds, and it is precisely on anomalous flows where two normally coupled counters diverge (for example, high packet volume without corresponding payload bytes, or asymmetric TCP handshake delays) that an intrusion signature may become separable. A preliminary complete-link correlation ablation (reducing 41 predictors to 27 under two representative-selection policies) confirmed that removing correlated predictors consistently lowered validation macro-F1; consequently, all 41 cleaned predictors were retained. Similarly, repeated identical feature vectors were retained during preprocessing because flow multiplicity in network traffic reflects genuine attack volume (such as repetitive probes or floods) and directly informs both node entropy calculations and majority-class decisions during reduced-error pruning.
+\end{enumerate}
+
+\subsection{Extended ID3 Decision Tree Implementation}
+The base learner (\texttt{assignment4.dec\_tree.id3}) extends the classic categorical ID3 algorithm~\cite{Quinlan1986} to support mixed categorical and continuous attributes, configurable impurity metrics (\texttt{information\_gains}, \texttt{gain\_ratios}, and \texttt{gini\_information\_gains}), optional maximum-depth pre-pruning ($d_{\max}$), and saving or loading fitted models to disk via Python's \texttt{pickle} module.
+
+\subsubsection{Tree Representation and Unseen-Category Fallbacks}
+Fitted trees are represented as nested Python dictionaries in which terminal leaves store scalar class labels. Categorical internal nodes map \texttt{\{feature: \{level: subtree\}\}}, while numerical internal nodes use a feature-threshold tuple key \texttt{\{(feature, $\theta$): \{"<": left, ">=": right\}\}}. When a categorical feature is selected for splitting, it is removed from the candidate feature set passed to its children; when a numerical feature is selected, it remains available for subsequent splits at finer thresholds deeper in the tree.
+
+When trees are trained on subsamples or bootstrap replicates, a rare protocol or connection state present in the broader dataset may be absent from a node's local training partition. To prevent key errors during pruning or validation, the learner accepts a fixed dictionary of categorical domains extracted from the entire training growth pool. Any domain value $l \in \operatorname{levels}(d)$ that receives zero rows at a split node is immediately assigned a fallback leaf predicting the majority class of the current node's training partition. For defensive robustness at inference time, if an evaluation instance ever presents a categorical level completely absent from the growth-pool domain, the experiment prediction adapter returns the model's global training-majority class.
+
+\subsubsection{Fast Incremental Numerical Threshold Scoring}
+A naive implementation of continuous threshold selection constructs a boolean mask and recomputes target entropy from scratch for every candidate midpoint $\theta$. When $N > 10^5$ and 37 numerical predictors each contain thousands of distinct values, naive threshold scanning becomes the dominant computational bottleneck.
+
+To make full-dataset induction and multi-tree ensembles tractable, we implemented an incremental single-sort threshold scorer (\texttt{\_incremental\_continuous\_gains} in \texttt{info\_metrics.py}) that produces exact mathematical equivalence to the naive scorer while reducing per-feature complexity from $O(U \cdot N)$ DataFrame scans to $O(N \log N + U K \log K)$ for $N$ rows, $U$ distinct feature values, and $K$ classes:
+\begin{enumerate}
+    \item The node's data is sorted once by the candidate numerical feature $x_d$ using a stable sort, and target labels are factorised into integer codes.
+    \item Equal feature values are aggregated into ordered value groups $(v_1, \mathbf{c}_1), \dots, (v_U, \mathbf{c}_U)$, where $\mathbf{c}_u$ is the class-count histogram at value $v_u$. Grouping equal values first guarantees that identical feature values are never split across branches.
+    \item A right-branch counter $\mathbf{c}_R$ is initialised to the total node class distribution and a left-branch counter $\mathbf{c}_L$ to zero. Scanning sequentially through adjacent group pairs $(v_u, \mathbf{c}_u)$ and $(v_{u+1}, \mathbf{c}_{u+1})$, the algorithm transfers $\mathbf{c}_u$ from $\mathbf{c}_R$ to $\mathbf{c}_L$ in $O(K)$ operations.
+    \item If both adjacent groups are pure and share the exact same class label, the boundary between them cannot improve impurity and is skipped~\cite{Kelleher2020}. Otherwise, the midpoint $\theta_u = v_u/2 + v_{u+1}/2$ (with an exact upper-endpoint fallback if floating-point rounding collapses the midpoint onto $v_u$) is scored directly from the updated histograms $\mathbf{c}_L$ and $\mathbf{c}_R$.
+\end{enumerate}
+
+\subsection{Bottom-Up Reduced-Error Post-Pruning}
+Given an already induced decision tree $T$, its original fitting sample $\mathcal{D}_{\text{fit}}$, and a separate pruning dataset $\mathcal{D}_{\text{prune}}$, our reduced-error pruning implementation returns a pruned copy $T'$ without mutating $T$ (so an unpruned tree and its pruned counterpart always share the exact same initial fit).
+
+The algorithm traverses $T$ in post-order (visiting all child subtrees before their parent node) while simultaneously routing the corresponding subsets of $\mathcal{D}_{\text{fit}}$ and $\mathcal{D}_{\text{prune}}$ down the branches:
+\begin{itemize}
+    \item At each internal node $v$, let $c^*(v)$ denote the majority class of the training instances $\mathcal{D}_{\text{fit}}(v)$ reaching $v$, breaking ties deterministically by the first modal class in the series. If $\mathcal{D}_{\text{fit}}(v)$ is empty, the subtree is left unchanged.
+    \item After recursively pruning all children of $v$, each child returns both its pruned structure and the integer count of unweighted classification errors it committed on its routed subset of $\mathcal{D}_{\text{prune}}(v)$. Summing these returned counts yields the retained subtree error $e_{\text{subtree}}(v)$ in $O(\operatorname{branches}(v))$ time, avoiding redundant re-prediction of descendant paths.
+    \item The error of replacing the entire subtree at $v$ with a single leaf predicting $c^*(v)$ is computed as $e_{\text{leaf}}(v) = \sum_{(\mathbf{x}_i, y_i) \in \mathcal{D}_{\text{prune}}(v)} \mathbb{I}(y_i \ne c^*(v))$.
+    \item If $e_{\text{leaf}}(v) \le e_{\text{subtree}}(v)$, the subtree is replaced by the leaf $c^*(v)$ and returns $e_{\text{leaf}}(v)$ to its parent; otherwise, the pruned subtree is retained and returns $e_{\text{subtree}}(v)$.
+\end{itemize}
+Because ties ($e_{\text{leaf}} = e_{\text{subtree}}$) favour replacement, any internal subtree reached by zero pruning observations ($0 \le 0$ errors) is automatically collapsed into its training-majority leaf.
+
+\subsection{Ensemble Frameworks}
+The ensemble module is designed around a generic functional callback interface: each constructor accepts a training callback \texttt{train\_model(df)} and a prediction callback \texttt{predict\_model(model, row)}, returning a serialisable \texttt{VotingEnsemble} object.
+
+\subsubsection{Bagging and Sub-Bagging}
+In our bagging implementation, standard bootstrap aggregation draws $N$ instances with replacement per estimator ($m = 1, \dots, M$), whereas sub-bagging draws a smaller sample of size $s < N$ without replacement. Each fitted base tree receives an equal voting weight $\alpha_m = 1.0$. At inference time, hard class predictions are aggregated via Equation~(\ref{eq:bagging_vote}), with vote ties resolved deterministically by the order in which class labels first appear in the training set. When evaluating ensemble prefixes across size checkpoints (such as $M \in \{5, 10, 25, 35, 50\}$), member predictions on fixed evaluation partitions are cached so that each checkpoint scores only the newly added trees.
+
+\subsubsection{Multiclass Boosting (SAMME)}
+Multiclass AdaBoost (SAMME)~\cite{Zhu2009} is implemented via stochastic weighted resampling so that the ID3 base learner does not require a native sample-weight API. At round $m$, $N$ training indices are drawn with replacement weighted by the current observation distribution $\mathbf{w}^{(m)}$. The induced base tree $h_m$ is then scored on all $N$ original rows of the fitting population to obtain the weighted training error $\epsilon_m$ in Equation~(\ref{eq:boost_err}).
+
+Two numerical and termination safeguards are enforced:
+\begin{enumerate}
+    \item \textbf{Early stopping and rejection:} If $\epsilon_m = 0$ (a perfect classifier on the fitting population), boosting terminates immediately and retains $h_m$ alone with weight $1.0$. Conversely, if $\epsilon_m \ge 1 - 1/K$ (failing to beat the $K$-class random-guessing threshold of $0.9$ for $K=10$), the learner $h_m$ is rejected and boosting terminates, returning the previously accepted members (or raising a \texttt{ValueError} if round $m=1$ fails).
+    \item \textbf{Log-space weight maintenance:} To prevent floating-point underflow in $\epsilon_m$ or overflow in $\exp(\alpha_m)$ across rounds, observation weights are stored as normalised log-weights $\ell_i^{(m)} = \ln w_i^{(m)}$. Letting $\mathcal{W}_m = \{i : h_m(\mathbf{x}_i) \ne y_i\}$ denote the misclassified training indices and $\ell_{\max} = \max_{i \in \mathcal{W}_m} \ell_i^{(m)}$, the log-error $\ln \epsilon_m$ is computed via the log-sum-exp identity:
+    \begin{equation}
+        \ln \epsilon_m = \ell_{\max} + \ln \sum_{i \in \mathcal{W}_m} \exp\bigl(\ell_i^{(m)} - \ell_{\max}\bigr) - \ln \sum_{i=1}^N w_i^{(m)}.
+    \end{equation}
+    After computing $\alpha_m$ via Equation~(\ref{eq:samme_alpha}), misclassified log-weights are incremented by $\alpha_m$ and re-normalised in log-space.
+\end{enumerate}
+
+\subsection{Hybrid Class-Balanced Training Resampling}
+The UNSW-NB15 dataset is heavily skewed: in the natural training distribution, \emph{Normal} ($36.09\%$), \emph{Generic} ($22.85\%$), and \emph{Exploits} ($17.28\%$) account for over three-quarters of all records, whereas \emph{Worms} ($0.068\%$), \emph{Shellcode} ($0.59\%$), \emph{Backdoor} ($0.90\%$), and \emph{Analysis} ($1.04\%$) together constitute less than $2.6\%$ of the data. Training on natural proportions starves rare classes of split gain, while pure equal-quota balancing ($10\%$ per class) discards most majority-class examples within a fixed sample budget and heavily duplicates rare instances.
+
+To control balancing strength continuously while keeping the total number of training draws fixed at $N_{\text{draw}}$, we define a hybrid class-sampling distribution parameterised by a mixing weight $\lambda \in [0, 1]$:
+\begin{equation}
+    q_c(\lambda) = (1 - \lambda) p_c + \frac{\lambda}{K}, \quad c \in \{0, \dots, K-1\},
+    \label{eq:hybrid_balance}
+\end{equation}
+where $p_c$ is the natural proportion of class $c$ in the source growth pool and $K = 10$. Setting $\lambda = 0$ preserves the natural class distribution, $\lambda = 1$ enforces uniform equal-class quotas ($q_c = 1/10$), and intermediate values such as $\lambda = 0.5$ blend the natural distribution with a uniform prior ($q_c = 0.5 p_c + 0.05$). Integer class quotas $n_c$ summing to $N_{\text{draw}}$ are obtained by taking $\lfloor N_{\text{draw}} q_c(\lambda) \rfloor$ and distributing the remaining draws in descending order of the fractional remainders.
+
+Within each class $c$, sampling adapts to the available source support $N_c$:
+\begin{itemize}
+    \item If $n_c \le N_c$ (majority classes), $n_c$ observations are drawn \textbf{without replacement}, maximising the number of distinct real flows seen by the learner.
+    \item If $n_c > N_c$ (minority classes), $n_c$ observations are drawn \textbf{with replacement} (oversampling).
+\end{itemize}
+For a given random seed, the standalone decision tree and SAMME boosting share the same initial $\lambda$-balanced training population of $N_{\text{draw}}$ rows (upon which SAMME then performs its sequential weighted resampling). For balanced bagging, however, bootstrapping a single pre-balanced frame would permanently discard the unsampled majority-class observations across the entire ensemble. Instead, each bagging member $m \in \{1, \dots, M\}$ draws a fresh, independent $\lambda$-balanced sample directly from the full original growth pool using a deterministic member seed. This ensures that every tree is trained on the target balanced class distribution while the ensemble collectively covers nearly 100\% of the distinct majority-class records in the growth pool. Crucially, class balancing is applied \emph{only} to model growth; the pruning, validation, and generalization partitions always retain their natural class frequencies.
