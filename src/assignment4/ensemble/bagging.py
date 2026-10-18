@@ -7,7 +7,8 @@ from ._common import VotingEnsemble, positive_integer, validate_training
 
 
 def bagging(df, train_model, predict_model, *, n_estimators=10,
-            sample_size=None, bootstrap=True, random_state=None, progress=False):
+            sample_size=None, bootstrap=True, random_state=None, progress=False,
+            on_estimator=None):
     """Train independent classifiers on random samples and use majority voting.
 
     The target is the last DataFrame column. train_model(sample_df) must return
@@ -17,8 +18,12 @@ def bagging(df, train_model, predict_model, *, n_estimators=10,
     random_state controls sampling only; seed stochastic base learners too.
     progress=True displays completed models; alternatively provide a callback
     progress(completed_models, total_models). Output is disabled by default.
+    on_estimator(ensemble, completed_models), if supplied, runs after each fit
+    for checkpointing/evaluation. It must not mutate the live ensemble.
     """
     classes = validate_training(df, train_model, predict_model, n_estimators)
+    if on_estimator is not None and not callable(on_estimator):
+        raise TypeError("on_estimator must be callable or None")
     sample_size = len(df) if sample_size is None else sample_size
     positive_integer(sample_size, "sample_size")
     if not isinstance(bootstrap, bool):
@@ -28,14 +33,16 @@ def bagging(df, train_model, predict_model, *, n_estimators=10,
 
     rng = random.Random(random_state)
     positions = range(len(df))
-    models = []
+    ensemble = VotingEnsemble([], [], classes, df.columns[:-1].tolist(), predict_model)
     with ProgressBar(n_estimators, "Bagging models", progress) as bar:
         for _ in range(n_estimators):
             indices = (rng.choices(positions, k=sample_size) if bootstrap
                        else rng.sample(positions, k=sample_size))
             sample = df.iloc[indices].copy().reset_index(drop=True)
-            models.append(train_model(sample))
+            ensemble.estimators.append(train_model(sample))
+            ensemble.estimator_weights.append(1.0)
             bar.advance()
+            if on_estimator is not None:
+                on_estimator(ensemble, len(ensemble.estimators))
 
-    return VotingEnsemble(models, [1.0] * n_estimators, classes,
-                          df.columns[:-1].tolist(), predict_model)
+    return ensemble

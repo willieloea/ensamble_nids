@@ -1,6 +1,7 @@
 # file: info_metrics.py
 
 import math
+from collections import Counter
 import pandas as pd
 
 if __package__:
@@ -44,6 +45,24 @@ def information_gains(df):
     return info_gains
 
 
+def _continuous_values(df, feature):
+    """Validate a numerical predictor before sorting or making thresholds."""
+    values = df[feature]
+    if not pd.api.types.is_numeric_dtype(values):
+        raise ValueError(f"Continuous feature {feature!r} must be numeric")
+    if values.isna().any() or any(not math.isfinite(v) for v in values):
+        raise ValueError(f"Continuous feature {feature!r} must contain finite values")
+    return values
+
+
+def _threshold_between(lower, upper):
+    """Use the existing midpoint rule, including adjacent-float fallback."""
+    threshold = lower / 2 + upper / 2
+    if not lower < threshold <= upper:
+        threshold = upper
+    return threshold
+
+
 def candidate_thresholds(df, feature):
     """Midpoints at target transitions, grouping equal feature values first.
 
@@ -51,11 +70,7 @@ def candidate_thresholds(df, feature):
     boundaries too. Equal feature values must never be split across branches.
     The target is the last column, just as in information_gains().
     """
-    values = df[feature]
-    if not pd.api.types.is_numeric_dtype(values):
-        raise ValueError(f"Continuous feature {feature!r} must be numeric")
-    if values.isna().any() or any(not math.isfinite(v) for v in values):
-        raise ValueError(f"Continuous feature {feature!r} must contain finite values")
+    _continuous_values(df, feature)
 
     target = df.columns[-1]
     groups = [
@@ -66,20 +81,101 @@ def candidate_thresholds(df, feature):
     for (lower, lower_labels), (upper, upper_labels) in zip(groups, groups[1:]):
         if len(lower_labels) == len(upper_labels) == 1 and lower_labels == upper_labels:
             continue
-        threshold = lower / 2 + upper / 2
-        # Adjacent floating-point values may have no representable midpoint.
-        if not lower < threshold <= upper:
-            threshold = upper
-        thresholds.append(threshold)
+        thresholds.append(_threshold_between(lower, upper))
     return thresholds
+
+
+def _can_score_incrementally(df, values, info_metric):
+    """Keep custom scorers and unusual pandas comparison semantics unchanged."""
+    if not any(info_metric is metric for metric in
+               (information_gains, gini_information_gains, gain_ratios)):
+        return False
+    target = df.iloc[:, -1]
+    if target.isna().any() or isinstance(target.dtype, pd.CategoricalDtype):
+        return False
+    if pd.api.types.is_float_dtype(values.dtype) and values.dtype.itemsize != 8:
+        # Comparing float32 arrays with float midpoints can round the boundary
+        # to an endpoint. Preserve the original Boolean-mask scorer for these.
+        return False
+    if pd.api.types.is_integer_dtype(values.dtype) and not values.empty:
+        # Above this range, pandas' int/float comparisons can differ from the
+        # mathematical ordering used by a grouped sweep.
+        if values.min() < -(2 ** 53) or values.max() > 2 ** 53:
+            return False
+    return True
+
+
+def _impurity_from_counts(counts, size, info_metric):
+    """Match value_counts' descending-frequency arithmetic and omit zeros."""
+    probabilities = [count / size for count in sorted(counts.values(), reverse=True)
+                     if count > 0]
+    if info_metric is gini_information_gains:
+        return gini.gini_index(probabilities)
+    return entropy.entropy(probabilities)
+
+
+def _incremental_continuous_gains(df, feature, info_metric):
+    """Sort once, then move whole equal-value groups between class counts."""
+    ordered = df.loc[:, [feature, df.columns[-1]]].sort_values(feature, kind="stable")
+    codes = pd.factorize(ordered.iloc[:, -1], sort=False)[0].tolist()
+    values = ordered[feature]
+    # Extension dtypes expose numpy scalars as groupby keys; ordinary numpy
+    # dtypes expose Python scalars. Preserve their midpoint arithmetic.
+    sorted_values = (values.array if pd.api.types.is_extension_array_dtype(values.dtype)
+                     else values.tolist())
+    groups = []
+    for value, label in zip(sorted_values, codes):
+        if not groups or value != groups[-1][0]:
+            groups.append((value, Counter()))
+        groups[-1][1][label] += 1
+    if len(groups) < 2:
+        return {}
+
+    right = Counter()
+    for _, counts in groups:
+        right.update(counts)
+    size = len(df)
+    initial_impurity = _impurity_from_counts(right, size, info_metric)
+    left = Counter()
+    left_size = 0
+    scores = {}
+    for (lower, counts), (upper, next_counts) in zip(groups, groups[1:]):
+        left.update(counts)
+        right.subtract(counts)
+        left_size += sum(counts.values())
+        if len(counts) == len(next_counts) == 1 and counts.keys() == next_counts.keys():
+            continue
+        right_size = size - left_size
+        remaining = (
+            (left_size / size) * _impurity_from_counts(left, left_size, info_metric)
+            + (right_size / size) * _impurity_from_counts(right, right_size, info_metric)
+        )
+        gain = initial_impurity - remaining
+        if info_metric is gain_ratios:
+            split_probabilities = [count / size for count in sorted(
+                (left_size, right_size), reverse=True)]
+            gain /= entropy.entropy(split_probabilities)
+        scores[_threshold_between(lower, upper)] = gain
+    return scores
 
 
 def continuous_information_gains(df, feature, info_metric=information_gains):
     """Return {threshold: score} for a continuous feature at the current node.
 
-    Replace the feature with a Boolean test to reuse the existing categorical
-    scoring functions (entropy, Gini, or gain ratio).
+    For the built-in entropy, Gini, and gain-ratio scorers, sort the feature
+    once and update left/right class counts at equal-value group boundaries.
+    Candidate selection and descending-frequency impurity arithmetic match
+    the original Boolean-partition scorer. Cost is O(n log n + u k log k) for
+    n rows, u distinct feature values, and k observed classes, rather than
+    constructing and scanning a DataFrame for each candidate threshold.
+
+    Arbitrary scorer callbacks, missing/categorical targets, low-precision
+    floats, and integers outside exact float64 range retain the original
+    Boolean-mask calculation to preserve pandas comparison behaviour.
     """
+    values = _continuous_values(df, feature)
+    if _can_score_incrementally(df, values, info_metric):
+        return _incremental_continuous_gains(df, feature, info_metric)
     scores = {}
     for threshold in candidate_thresholds(df, feature):
         split_data = df.loc[:, [feature, df.columns[-1]]].copy()

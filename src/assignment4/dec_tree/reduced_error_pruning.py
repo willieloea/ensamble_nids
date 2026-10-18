@@ -32,7 +32,8 @@ def reduced_error_pruning(tree, training_df, validation_df):
 
     A node reached by no validation rows is pruned on the zero-error tie.
     A node reached by no training rows is left unchanged: its majority
-    cannot be determined from these data.
+    cannot be determined from these data. Children return their retained error
+    counts, so ancestors do not predict the same validation paths again.
     """
     if training_df.empty:
         raise ValueError("The training set must not be empty.")
@@ -56,32 +57,43 @@ def reduced_error_pruning(tree, training_df, validation_df):
         return df[split] == branch
 
     def prune(node, train, valid):
-        if not isinstance(node, dict) or train.empty:
-            return node
+        if not isinstance(node, dict):
+            return node, int((valid[target] != node).sum())
+        if train.empty:
+            # Leave this entire subtree unchanged, scoring it only once.
+            return node, error_count(node, valid)
 
         majority = train[target].mode().iloc[0]
         split, branches = next(iter(node.items()))
 
         # Post-order traversal: child replacements are retained when
         # evaluating whether to replace this entire subtree.
+        subtree_errors = 0
+        routed_rows = 0
         for branch, child in list(branches.items()):
-            branches[branch] = prune(
+            child_valid = valid.loc[branch_mask(valid, split, branch)]
+            branches[branch], child_errors = prune(
                 child,
                 train.loc[branch_mask(train, split, branch)],
-                valid.loc[branch_mask(valid, split, branch)],
+                child_valid,
             )
+            subtree_errors += child_errors
+            routed_rows += len(child_valid)
 
-        subtree_errors = error_count(node, valid)
+        if routed_rows != len(valid):
+            # Preserve the predictor's KeyError for an unsupported category;
+            # silently omitting those rows would make pruning too optimistic.
+            error_count(node, valid)
         leaf_errors = int((valid[target] != majority).sum())
 
         # Counts and error rates give the same comparison on the same rows.
         # Predictions outside this subtree do not change, so evaluating
         # only rows reaching this node is equivalent to scoring the full tree.
         if leaf_errors <= subtree_errors:
-            return majority
-        return node
+            return majority, leaf_errors
+        return node, subtree_errors
 
-    return prune(deepcopy(tree), training_df, validation_df)
+    return prune(deepcopy(tree), training_df, validation_df)[0]
 
 
 def train_validation_split(df, validation_fraction=0.2, random_state=42):

@@ -3,6 +3,7 @@
 # Iterative Dichotomizer 3
 import pickle
 from os import PathLike
+from numbers import Integral
 
 import pandas as pd
 if __package__:
@@ -20,6 +21,7 @@ def id3(
     continuous_features=None,
     save_path: str | PathLike[str] | None = None,
     progress=False,
+    max_depth=None,
 ):
     """
     Iteratively partitions the dataset based on which feature is most
@@ -34,16 +36,23 @@ def id3(
     Load with pickle.load(); only load pickle files from trusted sources.
     progress=True displays training rows assigned to terminal leaves. A
     callback progress(completed_rows, total_rows) can be supplied instead.
+    max_depth limits the number of edges from the root to a leaf; zero returns
+    a majority-class leaf. None preserves unrestricted growth.
     """
+    if max_depth is not None and (isinstance(max_depth, bool)
+                                 or not isinstance(max_depth, Integral) or max_depth < 0):
+        raise ValueError("max_depth must be a nonnegative integer or None")
     with ProgressBar(len(df), "ID3 training rows", progress) as bar:
-        tree = _id3(df, info_metric, domains, parent_majority, continuous_features, bar)
+        tree = _id3(df, info_metric, domains, parent_majority, continuous_features,
+                    bar, max_depth=max_depth)
     if save_path is not None:
         with open(save_path, "wb") as file:
             pickle.dump(tree, file, protocol=pickle.HIGHEST_PROTOCOL)
     return tree
 
 
-def _id3(df, info_metric, domains, parent_majority, continuous_features, bar):
+def _id3(df, info_metric, domains, parent_majority, continuous_features, bar,
+         max_depth=None, depth=0):
     """Grow the tree recursively without saving intermediate subtrees."""
     continuous_features = set(continuous_features or ())
     if domains is None:
@@ -65,6 +74,10 @@ def _id3(df, info_metric, domains, parent_majority, continuous_features, bar):
     descriptive_features = list(df.columns)[:-1]
 
     current_majority = df[target_feature].mode()[0]
+
+    if max_depth is not None and depth >= max_depth:
+        bar.advance(len(df))
+        return current_majority
 
     if len(df[target_feature].unique()) == 1:
         # a decision tree consisting of a leaf node with label C
@@ -115,6 +128,8 @@ def _id3(df, info_metric, domains, parent_majority, continuous_features, bar):
                     parent_majority=current_majority,
                     continuous_features=continuous_features,
                     bar=bar,
+                    max_depth=max_depth,
+                    depth=depth + 1,
                 )
             return tree
 
@@ -135,6 +150,8 @@ def _id3(df, info_metric, domains, parent_majority, continuous_features, bar):
                 parent_majority=current_majority,
                 continuous_features=continuous_features,
                 bar=bar,
+                max_depth=max_depth,
+                depth=depth + 1,
             )
             tree[best_feature][val] = subtree
 

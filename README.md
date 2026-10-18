@@ -140,7 +140,8 @@ prediction = predict(tree, observation)
 
 ## Generic classification ensembles
 
-`assignment4.ensemble` provides `bagging` and `boosting`. Both accept:
+`assignment4.ensemble` provides `bagging`, `boosting`, and `stacking`. Bagging
+and boosting accept:
 
 - `train_model(sample_df)`: construct and return a fresh fitted classifier.
 - `predict_model(model, row)`: predict a single class label from a dictionary
@@ -221,70 +222,3 @@ Returned objects expose `estimators`, `estimator_weights`, and, for boosting,
 `estimator_errors`. They can be pickled when their models and prediction
 callback are pickle-compatible. Prefer importable functions over lambdas or
 locally defined functions when saving models; only load trusted pickle files.
-
-### Training progress
-
-Pass `progress=True` to `id3`, `bagging`, or `boosting` to display a progress
-bar. ID3 counts training rows assigned to terminal leaves; bagging counts fitted
-models; boosting counts evaluated rounds and may stop before the requested
-number. Row completion does not measure the fraction of computation finished:
-the initial split search can take time before the first leaf is completed.
-Progress output is disabled by default and requires no extra dependencies.
-
-```python
-tree = id3(training_df, information_gains,
-           continuous_features=numerical_cols, progress=True)
-bagged = bagging(training_df, train_tree, predict,
-                 n_estimators=20, random_state=42, progress=True)
-```
-
-A callback `progress(completed, total)` can be supplied instead of `True` to
-connect training to a notebook display or another progress monitor.
-
-### Two-hour screening batch
-
-Run this in a terminal from the repository root:
-
-```sh
-uv run python scripts/run_screening.py --output experiments/two-hour-screening
-```
-
-The runner has a two-hour wall-clock budget and a six-minute limit per job.
-It compares single and pruned ID3 trees, bagging, sub-bagging, and SAMME
-boosting using 500, 1,000, and 2,000 training rows, three sampling seeds, and
-ensembles of 5 members, followed by 15-member bagging and boosting runs as time
-allows. These are preliminary learning-curve and ensemble-size experiments,
-using all cleaned predictors and no class balancing. Each training subsample
-retains at least one observation per class, so the smallest samples are only
-approximately proportional to the original class frequencies.
-
-The live experiment bar shows processed jobs out of 54 planned jobs, elapsed
-time, remaining time budget, and the current stage. While training it also
-shows completed models/rounds and an ID3 row progress bar. Pruning and scoring
-are named stages without invented completion percentages. Progress is saved
-in per-job `.progress.json` files; `--no-progress` hides terminal bars.
-
-A stratified 20% final test partition is reserved and never scored. The
-remaining data are split into growth, pruning, and tuning partitions. Pruning
-uses its own 2,000-row sample; tuning metrics use the full tuning partition.
-Results include macro-F1, balanced accuracy, accuracy, per-class metrics,
-confusion matrices, fit and prediction timings, and fitted models.
-
-The output directory contains `summary.csv`, per-job metrics and logs,
-`status.json`, partition indices, and a frozen source-code snapshot. Callbacks
-in saved ensembles are defined in the snapshot's `run_screening.py`; add its
-directory and `code/src` to your Python import path when loading these models.
-Timed-out and failed jobs are recorded, and finished results survive Ctrl-C.
-Run the same command with the same output directory to resume unattempted
-jobs. Each invocation receives a fresh time budget; existing snapshots and
-partitions are reused. Keep the terminal running for the batch to continue.
-
-### Checking the implementation
-
-The tests use Python's standard-library `unittest` runner and the project's
-existing dependencies; no additional testing dependency is required:
-
-```sh
-uv run python -m unittest discover -s tests -v
-uv run python -m compileall src/assignment4
-```

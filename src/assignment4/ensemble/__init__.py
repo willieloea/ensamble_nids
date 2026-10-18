@@ -2,6 +2,7 @@
 
 from .bagging import bagging
 from .boosting import boosting
+from .stacking import StackingEnsemble, stacking
 from ._common import VotingEnsemble
 
-__all__ = ["bagging", "boosting", "VotingEnsemble"]
+__all__ = ["bagging", "boosting", "stacking", "VotingEnsemble", "StackingEnsemble"]

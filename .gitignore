@@ -22,3 +22,4 @@ wheels/
 *.png
 notebooks/data/
 experiments/two-hour-screening/
+*.json

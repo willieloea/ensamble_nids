@@ -9,7 +9,7 @@ from ._common import VotingEnsemble, validate_training
 
 
 def boosting(df, train_model, predict_model, *, n_estimators=50,
-             learning_rate=1.0, random_state=None, progress=False):
+             learning_rate=1.0, random_state=None, progress=False, on_estimator=None):
     """Fit SAMME classifiers, supporting learners without sample-weight APIs.
 
     train_model(sample_df) returns a fresh model; predict_model(model, row)
@@ -30,8 +30,13 @@ def boosting(df, train_model, predict_model, *, n_estimators=50,
     progress=True displays evaluated boosting rounds; alternatively provide a
     callback progress(completed_rounds, total_rounds). Early stopping can end
     below the requested round count. Output is disabled by default.
+    on_estimator(ensemble, round_number), if supplied, runs after each accepted
+    learner. It must not mutate the live ensemble. A perfect learner can
+    replace previous members, so round_number can exceed the ensemble size.
     """
     classes = validate_training(df, train_model, predict_model, n_estimators)
+    if on_estimator is not None and not callable(on_estimator):
+        raise TypeError("on_estimator must be callable or None")
     if len(classes) < 2:
         raise ValueError("Boosting requires at least two target classes.")
     if not math.isfinite(learning_rate) or learning_rate <= 0:
@@ -71,6 +76,8 @@ def boosting(df, train_model, predict_model, *, n_estimators=50,
                 ensemble.estimators = [model]
                 ensemble.estimator_weights = [1.0]
                 ensemble.estimator_errors = [0.0]
+                if on_estimator is not None:
+                    on_estimator(ensemble, _ + 1)
                 break
 
             # Compute log(error) directly: tiny incorrect weights may underflow
@@ -88,6 +95,8 @@ def boosting(df, train_model, predict_model, *, n_estimators=50,
             ensemble.estimators.append(model)
             ensemble.estimator_weights.append(alpha)
             ensemble.estimator_errors.append(error)
+            if on_estimator is not None:
+                on_estimator(ensemble, _ + 1)
 
             # Keep weights in log space to avoid overflow in exp(alpha).
             updated = [value + (alpha if wrong else 0.0)

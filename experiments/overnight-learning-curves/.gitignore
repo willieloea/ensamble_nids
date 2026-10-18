@@ -1,0 +1,6 @@
+results/
+__pycache__/
+.results-before-gain-ratio-*/
+.results-before-evaluation-cache-*/
+.results-before-scheduling-*/
+.results-before-sampling-*/
