@@ -1,0 +1,36 @@
+{
+  "stage": "runtime_pilot",
+  "development_pools": "../overnight-learning-curves/results/development_pools.pkl",
+  "partition_rows": {
+    "grow": 123683,
+    "prune": 41225,
+    "validation": 41234,
+    "final_test": 51531
+  },
+  "training_draws": 123683,
+  "balancing_lambdas": [0.5, 1.0],
+  "criterion": "entropy",
+  "categorical": ["proto", "service", "state", "is_sm_ips_ports"],
+  "expected_predictors": 41,
+  "tree_max_depth": null,
+  "pruning_objective": "accuracy",
+  "prune_ensemble_members": false,
+  "bagging_max_depth": null,
+  "boosting_max_depths": [3, 8],
+  "boosting_learning_rates": [0.5, 1.0],
+  "ensemble_checkpoints": [5, 10, 25, 50],
+  "runtime_pilot": {
+    "seed": 42,
+    "initial_members": 5,
+    "sequential_jobs": true,
+    "adaptive_boosting_members": [10, 25],
+    "slowdown_ratio": 1.25,
+    "job_timeout_seconds": 7200,
+    "contingency_fraction": 0.25,
+    "forecast_seed_counts": [3, 5],
+    "evaluate_final_test": false
+  },
+  "provisional_final_seeds": [42, 43, 44],
+  "selection_metric": "validation_macro_f1",
+  "shared_lambda_selection": "mean_of_four_approaches_after_within_lambda_settings_selection"
+}
