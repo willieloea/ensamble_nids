@@ -6,6 +6,7 @@
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
 \usepackage{graphicx}
+\usepackage[caption=false,font=footnotesize]{subfig}
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{booktabs}
@@ -15,7 +16,7 @@
 
 \begin{document}
 
-\title{Comparative Evaluation of Decision Trees and Ensemble Models for Network Intrusion Detection on the UNSW-NB15 Dataset}
+\title{Comparative Evaluation of Decision Trees and Ensemble Models for Network Intrusion Detection}
 
 \author{\IEEEauthorblockN{24717274} \\
 \IEEEauthorblockA{\textit{Computer Science Division, Stellenbosch University} \\
@@ -28,7 +29,7 @@ Email: 24717274@sun.ac.za}
 \input{chap/abstract}
 
 \begin{IEEEkeywords}
-Network Intrusion Detection, UNSW-NB15, Decision Trees, Reduced-Error Pruning, Ensemble Learning, Bagging, Multiclass AdaBoost (SAMME), Class Imbalance.
+Bagging, Class Imbalance, Decision Trees, Ensemble Learning, Multiclass Adaptive Boosting, Network Intrusion Detection, Reduced-Error Pruning.
 \end{IEEEkeywords}
 
 \input{chap/introduction}
@@ -38,8 +39,9 @@ Network Intrusion Detection, UNSW-NB15, Decision Trees, Reduced-Error Pruning, E
 \input{chap/results}
 \input{chap/conclusion}
 
-\bibliographystyle{IEEEtran}
+\bibliographystyle{IEEEtranS}
 \bibliography{references}
 
-\end{document}
+\input{chap/appendices}
 
+\end{document}

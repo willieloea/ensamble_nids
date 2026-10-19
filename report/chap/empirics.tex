@@ -1,9 +1,109 @@
-% Here you describe the empirical procedure followed to apply your algorithms to
-% obtain answers to the goals/hypothesis of the study. You elaborate on the
-% performance measures used and provide the benchmark problems used. Provide all
-% control parameter values with a motivation for why you have used these, and
-% state the number of independent runs. If statistical tests are used, these are
-% discussed here. After reading this section (in addition to the background) the
-% reader should be able to duplicate your experiments to obtain similar results
-% to those obtained by you.
 \section{Empirical Procedure}
+\label{sec:empirics}
+
+The experimental protocol used to evaluate standalone decision trees and decision-tree ensembles is defined in Section~\ref{sec:empirics}. Subsection~\ref{subsec:emp_split} describes the four-way stratified dataset partitioning and class quotas. Subsection~\ref{subsec:emp_metrics} defines the classification performance measures and evaluation scopes. Finally, Subsection~\ref{subsec:emp_stages} specifies the four sequential experimental stages and their control parameter settings.
+
+\subsection{Stratified Four-Way Data Partitioning}
+\label{subsec:emp_split}
+To evaluate tree induction, reduced-error post-pruning, hyperparameter tuning, and final generalisation without data leakage, the cleaned 257,673-row dataset was partitioned once into four disjoint subsets via stratified random sampling within each target class using split seed 2026. First, $20\%$ of each class was reserved for the generalisation set. The remaining $80\%$ of each class was divided in a $60\% : 20\% : 20\%$ ratio into growth, pruning, and validation pools:
+\begin{itemize}
+    \item \textbf{Growth pool:} The growth pool contained 123,683 rows, representing $48.0\%$ of the dataset, and served as the sole source of training observations for inducing standalone trees and ensemble members.
+    \item \textbf{Pruning pool:} The pruning pool contained 41,225 rows, representing $16.0\%$ of the dataset, and was used exclusively by bottom-up reduced-error pruning to evaluate whether internal subtrees should be replaced by modal-class leaves.
+    \item \textbf{Validation pool:} The validation pool contained 41,234 rows, representing $16.0\%$ of the dataset, and was used for all development comparisons, learning-curve and depth diagnostics, balancing-policy selection, and ensemble hyperparameter tuning. Separating the validation pool from the pruning pool prevented optimistic bias, because reduced-error pruning uses pruning-set labels to modify tree structure.
+    \item \textbf{Generalisation pool:} The generalisation pool contained 51,531 rows, representing $20.0\%$ of the dataset, and was held in reserve throughout development and evaluated once after all primary model configurations were locked.
+\end{itemize}
+
+Table~\ref{tab:dataset_partitions} lists the exact class counts across the four partitions alongside the natural class proportions $\beta_j$ and the hybrid balanced quotas $n_j$ for $\lambda = 0.5$ at $n = 123{,}683$ draws. Under $\lambda = 0.5$, the three abundant categories \emph{Normal}, \emph{Exploits}, and \emph{Generic} were sampled without replacement, whereas the remaining seven categories were oversampled with replacement.
+
+\begin{table*}[!t]
+\centering
+\caption{Stratified Four-Way Dataset Partitioning Across the Ten Traffic Categories and Hybrid Balanced Quotas}
+\label{tab:dataset_partitions}
+\footnotesize
+\setlength{\tabcolsep}{4.8pt}
+\begin{tabular}{clrrrrrrl}
+\toprule
+\textbf{Index ($j$)} & \textbf{Category ($c_j$)} & \textbf{Growth} & \textbf{Pruning} & \textbf{Validation} & \textbf{Generalisation} & \textbf{Total} & \textbf{Share ($\beta_j$)} & \textbf{Balanced Quota ($n_j$)} \\
+\midrule
+1  & Normal         & 44,640 & 14,880 & 14,880 & 18,600 &  93,000 & 36.09\% & 28,504, without replacement \\
+2  & Reconnaissance &  6,714 &  2,238 &  2,238 &  2,797 &  13,987 &  5.43\% &  9,541, with replacement \\
+3  & Backdoor       &  1,118 &    372 &    374 &    465 &   2,329 &  0.90\% &  6,743, with replacement \\
+4  & DoS            &  7,849 &  2,616 &  2,618 &  3,270 &  16,353 &  6.35\% & 10,109, with replacement \\
+5  & Exploits       & 21,372 &  7,124 &  7,124 &  8,905 &  44,525 & 17.28\% & 16,870, without replacement \\
+6  & Analysis       &  1,285 &    428 &    429 &    535 &   2,677 &  1.04\% &  6,827, with replacement \\
+7  & Fuzzers        & 11,638 &  3,879 &  3,880 &  4,849 &  24,246 &  9.41\% & 12,003, with replacement \\
+8  & Worms          &     84 &     28 &     28 &     34 &     174 &  0.07\% &  6,226, with replacement \\
+9  & Shellcode      &    725 &    241 &    243 &    302 &   1,511 &  0.59\% &  6,547, with replacement \\
+10 & Generic        & 28,258 &  9,419 &  9,420 & 11,774 &  58,871 & 22.85\% & 20,313, without replacement \\
+\midrule
+\textbf{Total} & \textbf{All Categories} & \textbf{123,683} & \textbf{41,225} & \textbf{41,234} & \textbf{51,531} & \textbf{257,673} & \textbf{100.00\%} & \textbf{123,683 draws} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Performance Metrics and Evaluation Scopes}
+\label{subsec:emp_metrics}
+Because natural network traffic is dominated by \emph{Normal}, \emph{Generic}, and \emph{Exploits} records, a trivial classifier predicting \emph{Normal} for every observation achieves an overall accuracy of $36.09\%$ on the validation set while detecting zero attacks. Every fitted model was therefore evaluated using four complementary metrics derived from the $k \times k$ confusion matrix $\mathbf{M}$, where scalar entry $m_{jq}$ for $j, q \in \{1, \dots, k\}$ denotes the number of observations of true class $c_j$ predicted as class $c_q$:
+\begin{enumerate}
+    \item \textbf{Per-class precision, recall, and F1-score:} For each target class $c_j$, precision $p_j$, recall $s_j$, and F1-score $f_j$ are defined as
+    \begin{equation}
+    \begin{aligned}
+        p_j &= \frac{m_{jj}}{\sum_{q=1}^k m_{qj}}, \quad
+        s_j = \frac{m_{jj}}{\sum_{q=1}^k m_{jq}}, \\
+        f_j &= \frac{2 p_j s_j}{p_j + s_j},
+    \end{aligned}
+    \label{eq:per_class_metrics}
+    \end{equation}
+    where $p_j = 0$ and $f_j = 0$ whenever the denominator of $p_j$ or $f_j$ is zero. Recall $s_j$ measures detection sensitivity for category $c_j$, while precision $p_j$ measures resistance to false alarms.
+    \item \textbf{Macro-averaged F1-score:} The primary development and ranking metric $\bar{f}$ is the unweighted mean of the $k$ per-class F1-scores, defined as
+    \begin{equation}
+        \bar{f} = \frac{1}{k} \sum_{j=1}^k f_j.
+        \label{eq:macro_f1}
+    \end{equation}
+    The metric $\bar{f}$ weights rare attack classes equally with abundant classes and penalises models that increase minority recall by generating excessive false positives.
+    \item \textbf{Balanced accuracy:} The unweighted mean of per-class recalls $\bar{s}$ is defined as
+    \begin{equation}
+        \bar{s} = \frac{1}{k} \sum_{j=1}^k s_j.
+        \label{eq:bal_acc}
+    \end{equation}
+    \item \textbf{Overall accuracy:} The natural-distribution proportion of correctly classified observations $a$ over an evaluation set of size $n$ is defined as
+    \begin{equation}
+        a = \frac{1}{n} \sum_{j=1}^k m_{jj}.
+        \label{eq:overall_acc}
+    \end{equation}
+\end{enumerate}
+
+When models were trained under class-balanced resampling with $\lambda > 0$, scoring a model on the unresampled natural growth pool included majority-class rows omitted from the balanced training draw. Two training-side evaluation scopes were therefore recorded: fit-population metrics, measured on the actual balanced fitting draws, and natural-growth metrics, measured on the unresampled source growth rows. All validation and generalisation metrics were evaluated on the full natural-distribution validation and generalisation partitions. Across repeated random seeds, sample means and sample standard deviations were computed. Because all seeds shared the same fixed validation and generalisation partitions, the across-seed standard deviation quantified sensitivity to training subsample and ensemble resampling variation rather than variance across independent test sets.
+
+\subsection{Progressive Experimental Stages}
+\label{subsec:emp_stages}
+Four sequential experimental stages were executed. Every decision tree across all four stages was induced using information gain $\iota(b, D)$ and all $m = 41$ cleaned predictors.
+
+\subsubsection{Stage One: Sample-Size Learning Curves and Feature-Conflict Analysis}
+To measure how training sample volume governed single-tree generalisation and rare-class coverage, unrestricted ID3 trees were trained on stratified natural-proportion subsamples with $\lambda = 0$ of sizes $n \in \{2{,}000, 5{,}000, 10{,}000, 20{,}000, 50{,}000\}$ across three sampling seeds, 42, 43, and 44. Each induced tree was also post-pruned using a fixed 10,000-row stratified subsample of the pruning pool. In addition, each training subsample was grouped by exact 41-attribute vectors to determine the deterministic training-accuracy ceiling imposed by identical predictor vectors carrying conflicting target labels.
+
+\subsubsection{Stage Two: Tree Depth Sweeps and Equal-Quota Balancing at 10,000 Rows}
+At a common source budget of $n = 10{,}000$ growth rows across seeds 42, 43, and 44, two regularisation and balancing studies were conducted:
+\begin{itemize}
+    \item \textbf{Maximum depth sweep:} Unpruned single trees were induced at maximum depth limits of $d \in \{0, 1, 2, 4, 8, 12, 20\}$ and at unrestricted depth under both natural proportions with $\lambda = 0$ and equal-quota balancing with $\lambda = 1.0$, where 1,000 draws were allocated per class, to examine underfitting and overfitting as tree capacity increased.
+    \item \textbf{Matched 10,000-row method and policy comparison:} Under both $\lambda = 0$ and $\lambda = 1.0$, the unpruned tree and the reduced-error-pruned tree were compared against bagging with $t = 25$ unrestricted trees and SAMME boosting with $t = 25$ depth-three trees at $d = 3$ and learning rates $\eta \in \{0.5, 1.0\}$.
+\end{itemize}
+
+\subsubsection{Stage Three: Full-Growth-Pool Hyperparameter Pilot}
+Because Stage~One showed that validation macro-averaged F1-score had not plateaued at 50,000 rows and Stage~Two showed that pure equal-quota balancing at $\lambda = 1.0$ reduced overall accuracy on \emph{Normal} traffic, Stage~Three scaled training to the full growth pool of $n = 123{,}683$ draws on seed 42 for a 12-job tuning pilot. The pilot crossed two hybrid balancing weights, $\lambda \in \{0.5, 1.0\}$, against:
+\begin{itemize}
+    \item An unrestricted single tree and the corresponding reduced-error-pruned tree, pruned using all 41,225 rows of the pruning pool.
+    \item A five-member bagging ensemble with $t = 5$ unrestricted base trees.
+    \item A five-round SAMME boosting ensemble with $t = 5$ across a grid of maximum base-tree depths $d \in \{3, 8\}$ and learning rates $\eta \in \{0.5, 1.0\}$.
+\end{itemize}
+Based on validation macro-averaged F1-score and overall accuracy in the pilot, the shared balancing parameter was locked at $\lambda = 0.5$ and the SAMME boosting configuration was locked at $d = 8$ and $\eta = 1.0$.
+
+\subsubsection{Stage Four: Locked Final Comparison and Bagging Extension}
+The primary final experiment compared four locked approaches on the full 123,683-row growth pool under the shared $\lambda = 0.5$ hybrid balancing policy across two matched training seeds, 42 and 43:
+\begin{enumerate}
+    \item \textbf{Balanced unpruned tree:} A single unrestricted decision tree.
+    \item \textbf{Balanced pruned tree:} The same fitted unrestricted tree, post-pruned via reduced-error pruning using all 41,225 rows of the pruning partition.
+    \item \textbf{Balanced bagging ensemble:} An ensemble of $t = 25$ unrestricted, unpruned trees, each trained on a fresh $\lambda = 0.5$ sample of 123,683 draws from the growth pool using non-overlapping deterministic member seeds from 42 through 66 for seed 42 and from 43,000,000 through 43,000,024 for seed 43, combined by uniform majority voting.
+    \item \textbf{Balanced boosting ensemble:} Up to $t = 25$ sequential rounds of SAMME boosting with maximum base-tree depth $d = 8$ and learning rate $\eta = 1.0$, trained on the shared $\lambda = 0.5$ initial sample.
+\end{enumerate}
+Ensemble validation checkpoints were recorded at $t \in \{5, 10, 25\}$. Training tasks were distributed across two Linux machines using eight worker processes on a Lenovo ThinkBook and six lower-priority worker processes on a Dell Vostro, with single-threaded numerical libraries and secure hash algorithm 256-bit (SHA-256) checksum verification of all frozen data and model files. After all 54 planned tasks completed, the eight locked primary models at the $t = 25$ ensemble endpoint were evaluated once on the reserved 51,531-row generalisation partition. Finally, an exploratory validation-only follow-up extended both bagging trajectories from $t = 25$ to $t = 35$ and $t = 50$ members without accessing the generalisation partition.

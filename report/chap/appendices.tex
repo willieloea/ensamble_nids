@@ -1,0 +1,87 @@
+\appendices
+
+\section{List of Acronyms}
+\label{app:acronyms}
+
+Table~\ref{tab:acronyms} lists all acronyms used in the report in alphabetical order.
+
+\begin{table}[!h]
+\centering
+\caption{Alphabetical List of Acronyms}
+\label{tab:acronyms}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lp{6.2cm}}
+\toprule
+\textbf{Acronym} & \textbf{Definition} \\
+\midrule
+FTP       & file transfer protocol \\
+ID3       & iterative dichotomiser three \\
+IP        & internet protocol \\
+MB        & megabyte \\
+NIDS      & network intrusion detection system \\
+SAMME     & stagewise additive modelling using a multi-class exponential loss function \\
+SHA-256   & secure hash algorithm 256-bit \\
+TCP       & transmission control protocol \\
+UNSW-NB15 & University of New South Wales network-based 2015 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+\section{List of Symbols}
+\label{app:symbols}
+
+Table~\ref{tab:symbols} lists all mathematical symbols used in the report in alphabetical order, grouped into Latin symbols followed by Greek symbols.
+
+\begin{table*}[!t]
+\centering
+\caption{Alphabetical List of Mathematical Symbols}
+\label{tab:symbols}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lp{6.8cm}lp{6.8cm}}
+\toprule
+\textbf{Symbol} & \textbf{Definition} & \textbf{Symbol} & \textbf{Definition} \\
+\midrule
+$a$               & overall classification accuracy & $P_v$           & subset of pruning dataset $P$ reaching internal node $v$ \\
+$b$               & descriptive attribute index, $b \in \{1, \dots, m\}$ & $p_j$           & precision for target class $c_j$ \\
+$C$               & set of target classes, $C = \{c_1, \dots, c_k\}$ & $q$             & predicted class index in matrix $\mathbf{M}$, $q \in \{1, \dots, k\}$ \\
+$c_j$             & target class label $j$, $c_j \in C$ & $r$             & ensemble member or boosting round index, $r \in \{1, \dots, t\}$ \\
+$\mathbf{c}_1$    & running class-count vector for the left threshold branch & $s_j$           & recall for target class $c_j$ \\
+$\mathbf{c}_2$    & running class-count vector for the right threshold branch & $\bar{s}$       & balanced accuracy across all $k$ classes \\
+$\mathbf{c}_\tau$ & class-count vector at distinct numerical value $v_\tau$ & $t$             & total number of base learners in an ensemble \\
+$D$               & dataset of labelled instances & $u$             & number of distinct ordered values of a numerical attribute \\
+$D_1$             & left child subset of a binary threshold split ($x_{i,b} < \theta$) & $v$             & internal node in a decision tree \\
+$D_2$             & right child subset of a binary threshold split ($x_{i,b} \ge \theta$) & $v_\tau$        & distinct ordered value $\tau$ of a numerical attribute \\
+$D_f$             & fitting dataset used to induce a decision tree & $W_r$           & set of misclassified training instance indices at round $r$ \\
+$D_l$             & subset of dataset $D$ where attribute $b$ equals level $l$ & $\mathbf{w}_r$  & observation weight vector at boosting round $r$ \\
+$D_r$             & resampled training dataset for ensemble member $r$ & $w_{r,i}$       & observation weight of instance $i$ at boosting round $r$ \\
+$D_v$             & subset of fitting dataset $D_f$ reaching internal node $v$ & $\mathbf{x}_i$  & descriptive attribute vector for instance $i$ \\
+$d$               & maximum tree depth limit & $x_{i,b}$       & value of descriptive attribute $b$ for instance $i$ \\
+$e_v$             & unweighted error count of the subtree at node $v$ on $P_v$ & $y_i$           & true target class label of instance $i$ \\
+$f_j$             & F1-score for target class $c_j$ & $y^*_v$         & modal training class label at internal node $v$ \\
+$\bar{f}$         & macro-averaged F1-score across all $k$ classes & $z_r$           & weight normalisation divisor at boosting round $r$ \\
+$h(D)$            & Shannon entropy of dataset $D$ in bits & $\alpha_r$      & voting confidence weight of ensemble member $r$ \\
+$i$               & instance index, $i \in \{1, \dots, n\}$ & $\beta_j$       & natural proportion of class $c_j$ in the growth pool \\
+$j$               & target class index, $j \in \{1, \dots, k\}$ & $\gamma_j$      & hybrid class-sampling proportion for class $c_j$ \\
+$k$               & total number of target classes & $\delta(\cdot)$ & indicator function returning $1$ if true and $0$ otherwise \\
+$L_b$             & discrete domain of levels for categorical attribute $b$ & $\epsilon_r$    & weighted training error of base learner $r$ \\
+$l$               & categorical level in domain $L_b$ & $\eta$          & boosting learning rate \\
+$\ell_{r,i}$      & natural logarithm of weight $w_{r,i}$ at round $r$ & $\zeta(D)$      & Gini impurity of dataset $D$ \\
+$\hat{\ell}_r$    & maximum misclassified log-weight at boosting round $r$ & $\theta$        & binary split threshold for a numerical attribute \\
+$\mathbf{M}$      & $k \times k$ confusion matrix & $\iota(b, D)$   & information gain of splitting dataset $D$ on attribute $b$ \\
+$m$               & total number of descriptive attributes & $\kappa(b, D)$  & split information of partitioning dataset $D$ on attribute $b$ \\
+$m_{jq}$          & count of true class $c_j$ predicted as class $c_q$ in $\mathbf{M}$ & $\lambda$       & hybrid class-balancing interpolation weight \\
+$n$               & total number of instances in a dataset or draw budget & $\mu$           & Pearson linear correlation coefficient \\
+$n_j$             & integer training draw quota allocated to class $c_j$ & $\nu(D, c_j)$   & empirical proportion of class $c_j$ in dataset $D$ \\
+$o_v$             & unweighted error count of a modal leaf at node $v$ on $P_v$ & $\xi(b, D)$     & expected remaining entropy after splitting $D$ on attribute $b$ \\
+$P$               & pruning dataset used for reduced-error post-pruning & $\pi_r$         & classifier function induced for ensemble member $r$ \\
+ & & $\hat{\pi}$     & combined ensemble classifier function \\
+ & & $\rho$          & Spearman rank correlation coefficient \\
+ & & $\tau$          & index over distinct ordered values, $\tau \in \{1, \dots, u\}$ \\
+ & & $\psi(b, D)$    & gain ratio of splitting dataset $D$ on attribute $b$ \\
+ & & $\omega$        & sub-bagging subsample size drawn without replacement \\
+\bottomrule
+\end{tabular}
+\end{table*}
