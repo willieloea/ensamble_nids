@@ -28,13 +28,15 @@ UNSW-NB15 & University of New South Wales network-based 2015 \\
 \end{tabular}
 \end{table}
 
-\newpage
+% A single-column appendix lets the full-width table follow its introduction
+% on this page instead of deferring a two-column float to the next page.
+\onecolumn
 \section{List of Symbols}
 \label{app:symbols}
 
 Table~\ref{tab:symbols} lists all mathematical symbols used in the report in alphabetical order, grouped into Latin symbols followed by Greek symbols.
 
-\begin{table*}[!t]
+\begin{table}[!ht]
 \centering
 \caption{Alphabetical List of Mathematical Symbols}
 \label{tab:symbols}
@@ -84,4 +86,4 @@ $P$               & pruning dataset used for reduced-error post-pruning & $\pi_r
  & & $\omega$        & sub-bagging subsample size drawn without replacement \\
 \bottomrule
 \end{tabular}
-\end{table*}
+\end{table}

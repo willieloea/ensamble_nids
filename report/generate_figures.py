@@ -74,7 +74,7 @@ def plot_learning_curves():
     x = np.arange(len(sizes))
 
     # Panel (a)
-    fig, ax1 = plt.subplots(figsize=(3.4, 2.45))
+    fig, ax1 = plt.subplots(figsize=(3.4, 2.65))
     ax1.errorbar(
         x, raw_f1, yerr=raw_f1_sd, marker="o", linewidth=1.6, capsize=3,
         color="#1f77b4", label="Unpruned Macro-F1 ($\\bar{f}$)"
@@ -95,14 +95,14 @@ def plot_learning_curves():
     ax1.set_xticklabels(["2,000", "5,000", "10,000", "20,000", "50,000"])
     ax1.set_xlabel("Training Sample Size ($n$)")
     ax1.set_ylabel("Validation Score")
-    ax1.set_ylim(0.40, 0.86)
-    ax1.legend(loc="center left", frameon=True)
+    ax1.set_ylim(0.40, 0.85)
+    ax1.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=2, frameon=True, fontsize=7.2, columnspacing=0.8)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_learning_a.pdf", bbox_inches="tight")
     plt.close(fig)
 
     # Panel (b)
-    fig, ax2 = plt.subplots(figsize=(3.4, 2.45))
+    fig, ax2 = plt.subplots(figsize=(3.4, 2.65))
     ax2_twin = ax2.twinx()
     ax2_twin.grid(False)
     l1 = ax2.plot(
@@ -112,7 +112,7 @@ def plot_learning_curves():
     l2 = ax2.plot(
         x, conf_summary["train_mean"] * 100, marker="x", linestyle=":",
         linewidth=1.8, markersize=7, color="#111111",
-        label="Unpruned Training Accuracy (%)"
+        label="Unpruned Accuracy (%)"
     )
     bars = ax2_twin.bar(
         x, conf_summary["mixed_mean"], width=0.38, color="#d62728", alpha=0.28,
@@ -123,12 +123,12 @@ def plot_learning_curves():
     ax2.set_xlabel("Training Sample Size ($n$)")
     ax2.set_ylabel("Training Accuracy (%)")
     ax2_twin.set_ylabel("Conflicting Feature Vectors", color="#b01f20")
-    ax2.set_ylim(91.5, 100.2)
-    ax2_twin.set_ylim(0, 1800)
+    ax2.set_ylim(92.0, 100.0)
+    ax2_twin.set_ylim(0, 1750)
 
     lines = l1 + l2 + [bars]
     labels = [l.get_label() for l in lines]
-    ax2.legend(lines, labels, loc="lower left", frameon=True)
+    ax2.legend(lines, labels, loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=2, frameon=True, fontsize=7.2, columnspacing=0.8)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_learning_b.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -151,7 +151,7 @@ def plot_depth_curves():
         val_f1=("validation_macro_f1", "mean"),
     ).loc[depths]
 
-    fig, ax1 = plt.subplots(figsize=(3.4, 2.45))
+    fig, ax1 = plt.subplots(figsize=(3.4, 2.65))
     ax1.plot(x, nat["train_err"], marker="o", linewidth=1.6, color="#1f77b4", label="Train Error (Source)")
     ax1.plot(x, nat["val_err"], marker="s", linewidth=1.6, color="#d62728", label="Validation Error")
     ax1.plot(x, nat["val_f1"], marker="^", linestyle="--", linewidth=1.6, color="#2ca02c", label="Validation Macro-F1 ($\\bar{f}$)")
@@ -160,8 +160,8 @@ def plot_depth_curves():
     ax1.set_xticklabels(depth_labels)
     ax1.set_xlabel("Maximum Tree Depth ($d$)")
     ax1.set_ylabel("Error Rate / Macro-F1")
-    ax1.set_ylim(0.0, 0.70)
-    ax1.legend(loc="upper right", frameon=True)
+    ax1.set_ylim(0.0, 0.68)
+    ax1.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=2, frameon=True, fontsize=7.2, columnspacing=0.8)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_depth_a.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -174,17 +174,17 @@ def plot_depth_curves():
         val_f1=("validation_macro_f1", "mean"),
     ).loc[depths]
 
-    fig, ax2 = plt.subplots(figsize=(3.4, 2.45))
+    fig, ax2 = plt.subplots(figsize=(3.4, 2.65))
     ax2.plot(x, bal["fit_err"], marker="o", linewidth=1.6, color="#1f77b4", label="Fit-Population Error")
     ax2.plot(x, bal["val_err"], marker="s", linewidth=1.6, color="#d62728", label="Validation Error")
     ax2.plot(x, bal["val_f1"], marker="^", linestyle="--", linewidth=1.6, color="#2ca02c", label="Validation Macro-F1 ($\\bar{f}$)")
-    ax2.axhline(0.5021, color="#9467bd", linestyle="-.", linewidth=1.2, label="Pruned Full Tree ($\\bar{f}=0.502$)")
+    ax2.axhline(0.5021, color="#9467bd", linestyle="-.", linewidth=1.2, label="Pruned Tree ($\\bar{f}=0.502$)")
     ax2.set_xticks(x)
     ax2.set_xticklabels(depth_labels)
     ax2.set_xlabel("Maximum Tree Depth ($d$)")
     ax2.set_ylabel("Error Rate / Macro-F1")
     ax2.set_ylim(0.0, 0.95)
-    ax2.legend(loc="upper right", frameon=True)
+    ax2.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=2, frameon=True, fontsize=7.2, columnspacing=0.8)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_depth_b.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -212,14 +212,14 @@ def plot_10k_comparison():
     bal_f1 = [agg.loc[m[2], "validation_macro_f1_mean"] for m in methods]
     bal_f1_sd = [agg.loc[m[2], "validation_macro_f1_sd"] for m in methods]
 
-    fig, ax1 = plt.subplots(figsize=(3.4, 2.45))
+    fig, ax1 = plt.subplots(figsize=(3.4, 2.65))
     ax1.bar(x - w/2, nat_f1, width=w, yerr=nat_f1_sd, capsize=3, color="#4c78a8", label="Natural ($\\lambda=0$)")
     ax1.bar(x + w/2, bal_f1, width=w, yerr=bal_f1_sd, capsize=3, color="#f58518", label="Equal-Quota ($\\lambda=1$)")
     ax1.set_xticks(x)
     ax1.set_xticklabels([m[0] for m in methods])
     ax1.set_ylabel("Validation Macro-F1 ($\\bar{f}$)")
-    ax1.set_ylim(0.35, 0.54)
-    ax1.legend(loc="lower left", frameon=True)
+    ax1.set_ylim(0.35, 0.53)
+    ax1.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=2, frameon=True, fontsize=7.5)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_10k_a.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -229,7 +229,7 @@ def plot_10k_comparison():
     nat_bacc = [agg.loc[m[1], "validation_balanced_accuracy_mean"] * 100 for m in methods]
     bal_bacc = [agg.loc[m[2], "validation_balanced_accuracy_mean"] * 100 for m in methods]
 
-    fig, ax2 = plt.subplots(figsize=(3.4, 2.45))
+    fig, ax2 = plt.subplots(figsize=(3.4, 2.65))
     ax2.plot(x, nat_acc, marker="o", linewidth=1.6, color="#4c78a8", label="Natural Accuracy ($a$)")
     ax2.plot(x, bal_acc, marker="o", linestyle="--", linewidth=1.6, color="#f58518", label="Equal-Quota Accuracy ($a$)")
     ax2.plot(x, nat_bacc, marker="s", linewidth=1.6, color="#1b9e77", label="Natural Balanced ($\\bar{s}$)")
@@ -237,8 +237,8 @@ def plot_10k_comparison():
     ax2.set_xticks(x)
     ax2.set_xticklabels([m[0] for m in methods])
     ax2.set_ylabel("Validation Percentage (%)")
-    ax2.set_ylim(38, 84)
-    ax2.legend(loc="center left", frameon=True)
+    ax2.set_ylim(38, 83)
+    ax2.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=2, frameon=True, fontsize=7.0, columnspacing=0.8)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_10k_b.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -269,15 +269,15 @@ def plot_ensemble_trajectories():
     boost_m = boost_val.index.values
 
     # Panel (a)
-    fig, ax1 = plt.subplots(figsize=(3.4, 2.45))
+    fig, ax1 = plt.subplots(figsize=(3.4, 2.75))
     ax1.errorbar(
         bag_m[:3], bag_val["f1_mean"].values[:3], yerr=bag_val["f1_sd"].values[:3],
-        marker="o", linewidth=1.8, capsize=3, color="#1f77b4", label="Bagging (Primary: 5 to 25)"
+        marker="o", linewidth=1.8, capsize=3, color="#1f77b4", label="Bagging (5 to 25)"
     )
     ax1.errorbar(
         bag_m[2:], bag_val["f1_mean"].values[2:], yerr=bag_val["f1_sd"].values[2:],
         marker="o", linestyle="--", linewidth=1.6, capsize=3, color="#1f77b4",
-        label="Bagging (Extended: 35 to 50)"
+        label="Bagging (35 to 50)"
     )
     ax1.errorbar(
         boost_m, boost_val["f1_mean"].values, yerr=boost_val["f1_sd"].values,
@@ -292,13 +292,13 @@ def plot_ensemble_trajectories():
     ax1.set_xlabel("Number of Ensemble Members ($t$)")
     ax1.set_ylabel("Validation Macro-F1 ($\\bar{f}$)")
     ax1.set_ylim(0.54, 0.62)
-    ax1.legend(loc="lower right", frameon=True)
+    ax1.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=2, frameon=True, fontsize=7.0, columnspacing=0.7)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_traj_a.pdf", bbox_inches="tight")
     plt.close(fig)
 
     # Panel (b)
-    fig, ax2 = plt.subplots(figsize=(3.4, 2.45))
+    fig, ax2 = plt.subplots(figsize=(3.4, 2.75))
     ax2.plot(bag_m, bag_val["acc_mean"].values * 100, marker="o", linewidth=1.6, color="#1f77b4",
              label="Bagging Accuracy ($a$)")
     ax2.plot(boost_m, boost_val["acc_mean"].values * 100, marker="s", linewidth=1.6, color="#d62728",
@@ -316,7 +316,7 @@ def plot_ensemble_trajectories():
     ax2.set_xlabel("Number of Ensemble Members ($t$)")
     ax2.set_ylabel("Validation Percentage (%)")
     ax2.set_ylim(56, 83)
-    ax2.legend(loc="center right", frameon=True, fontsize=7.5)
+    ax2.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=2, frameon=True, fontsize=6.8, columnspacing=0.6)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_traj_b.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -345,7 +345,7 @@ def plot_generalization_per_class():
     offsets = [-1.5 * w, -0.5 * w, 0.5 * w, 1.5 * w]
 
     # Panel (a)
-    fig, ax1 = plt.subplots(figsize=(6.8, 2.15))
+    fig, ax1 = plt.subplots(figsize=(6.8, 2.25))
     for (m_key, m_label, color), offset in zip(methods, offsets):
         sub = agg[agg["method"] == m_key].sort_values("class")
         ax1.bar(x + offset, sub["f1"].values, width=w, color=color, label=m_label)
@@ -354,14 +354,14 @@ def plot_generalization_per_class():
     ax1.set_xticklabels(CLASS_NAMES)
     ax1.set_xlabel("Traffic Category")
     ax1.set_ylabel("F1-Score ($f_j$)")
-    ax1.set_ylim(0, 1.18)
-    ax1.legend(loc="upper center", ncol=4, frameon=True)
+    ax1.set_ylim(0, 1.06)
+    ax1.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=4, frameon=True)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_perclass_a.pdf", bbox_inches="tight")
     plt.close(fig)
 
     # Panel (b)
-    fig, ax2 = plt.subplots(figsize=(6.8, 2.25))
+    fig, ax2 = plt.subplots(figsize=(6.8, 2.35))
     for (m_key, m_label, color), offset in zip(methods, offsets):
         sub = agg[agg["method"] == m_key].sort_values("class")
         ax2.bar(x + offset, sub["recall"].values, width=w, color=color, alpha=0.85, label=f"{m_label} Recall")
@@ -374,8 +374,8 @@ def plot_generalization_per_class():
     ax2.set_xticklabels(CLASS_NAMES)
     ax2.set_xlabel("Traffic Category")
     ax2.set_ylabel("Recall ($s_j$) / Precision ($p_j$)")
-    ax2.set_ylim(0, 1.24)
-    ax2.legend(loc="upper center", ncol=3, frameon=True)
+    ax2.set_ylim(0, 1.06)
+    ax2.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=5, frameon=True, fontsize=7.5, columnspacing=0.8)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig_perclass_b.pdf", bbox_inches="tight")
     plt.close(fig)
