@@ -1,5 +1,13 @@
 # Decision tree and ensemble comparison
 
+For supplementary ThinkBook runs extending bagging to 50 members and comparing
+information gain with gain ratio, see [FOLLOWUPS.md](FOLLOWUPS.md).
+
+**The final parallel experiment is ready:** see
+[FINAL_EXPERIMENT.md](FINAL_EXPERIMENT.md) for its locked design, CPU allocation,
+ThinkBook/Vostro commands, result transfer, and generalization evaluation.
+The remainder of this README documents the earlier runtime pilot.
+
 This directory will hold the runtime pilot and then the final experiment for
 the report question: **How does the performance of a decision tree and different
 ensembles of decision trees compare?**

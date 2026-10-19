@@ -1,2 +1,6 @@
 results/
 !config.json
+!final_config.json
+!followup_config.json
+!bounded_criteria_config.json
+*.tar.gz

@@ -1,0 +1,22 @@
+{
+  "stage": "bounded_criteria_development_only",
+  "source_final": "results/final",
+  "development_pools": "results/final/development_pools.pkl",
+  "partition_rows": {"grow": 123683, "prune": 41225, "validation": 41234, "final_test": 51531},
+  "training_draws": 123683,
+  "balancing_lambda": 0.5,
+  "criterion": "entropy",
+  "expected_predictors": 41,
+  "categorical": ["proto", "service", "state", "is_sm_ips_ports"],
+  "seeds": [42, 43],
+  "bagging_member_seed_bases": {"42": 42, "43": 43000000},
+  "source_members": 25,
+  "primary_members": 50,
+  "ensemble_checkpoints": [5, 10, 25, 35, 50],
+  "tree_criteria": ["entropy", "gain_ratio"],
+  "tree_max_depth": 12,
+  "include_bagging": false,
+  "workers": 4,
+  "timeouts_seconds": {"tree": 1800, "bag_member": 1800},
+  "generalization_evaluation": false
+}

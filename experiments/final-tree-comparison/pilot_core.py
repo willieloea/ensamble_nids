@@ -118,7 +118,7 @@ class Recorder:
 
 
 def timed_boosting(frame, trainer, *, n_estimators, learning_rate, seed, recorder,
-                   checkpoint):
+                   checkpoint, resume=None, on_state=None):
     """Mirror package SAMME exactly, exposing separate round-phase timings.
 
     Equivalence to assignment4.ensemble.boosting is checked on deterministic
@@ -133,8 +133,16 @@ def timed_boosting(frame, trainer, *, n_estimators, learning_rate, seed, recorde
         targets = frame.iloc[:, -1].tolist()
         log_weights = [-math.log(len(frame))] * len(frame)
     ensemble = VotingEnsemble([], [], classes, frame.columns[:-1].tolist(), predict_tree)
+    start_round = 1
+    if resume is not None:
+        ensemble = resume['ensemble']
+        log_weights = resume['log_weights']
+        rng.setstate(resume['rng_state'])
+        start_round = resume['next_round']
+        if resume.get('stop_reason') in ('perfect_learner', 'rejected_learner'):
+            return ensemble, resume['stop_reason']
     reason = 'member_limit'
-    for round_number in range(1, n_estimators + 1):
+    for round_number in range(start_round, n_estimators + 1):
         with recorder.phase('round_sampling', round=round_number):
             weights = [math.exp(value) for value in log_weights]
             indices = rng.choices(range(len(frame)), weights=weights, k=len(frame))
@@ -184,6 +192,10 @@ def timed_boosting(frame, trainer, *, n_estimators, learning_rate, seed, recorde
                                    'weighted_error': error, 'reason': reason,
                                    'distinct_source_rows': model['distinct_source_rows'],
                                    'distinct_population_rows': model['distinct_population_rows']}) + '\n')
+        if on_state is not None:
+            on_state({'ensemble': ensemble, 'log_weights': log_weights,
+                      'rng_state': rng.getstate(), 'next_round': round_number + 1,
+                      'stop_reason': reason})
         if accepted:
             checkpoint(ensemble, round_number, force=reason == 'perfect_learner')
         if reason != 'member_limit':
